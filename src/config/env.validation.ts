@@ -1,6 +1,6 @@
-import { plainToInstance, Type } from 'class-transformer';
+import { plainToInstance, Transform } from 'class-transformer';
 import {
-  IsBooleanString,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -13,17 +13,29 @@ import {
   validateSync,
 } from 'class-validator';
 
+const toNumber = ({ value }: { value: unknown }): number | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const toBoolean = ({ value }: { value: unknown }): boolean | undefined => {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return undefined;
+};
+
 export class EnvSchema {
   @IsIn(['development', 'test', 'production'])
   NODE_ENV!: 'development' | 'test' | 'production';
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   @Max(65535)
   PORT!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   @Max(500)
@@ -48,18 +60,19 @@ export class EnvSchema {
   @IsNotEmpty()
   MONGODB_DATABASE_NAME!: string;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   MONGODB_POOL_SIZE!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   MONGODB_QUERY_TIMEOUT_MS!: number;
 
-  @IsBooleanString()
-  REDIS_ENABLED!: string;
+  @Transform(toBoolean)
+  @IsBoolean()
+  REDIS_ENABLED!: boolean;
 
   @IsOptional()
   @IsString()
@@ -118,33 +131,34 @@ export class EnvSchema {
   @IsString()
   COOKIE_DOMAIN?: string;
 
-  @IsBooleanString()
-  COOKIE_SECURE!: string;
+  @Transform(toBoolean)
+  @IsBoolean()
+  COOKIE_SECURE!: boolean;
 
   @IsIn(['lax', 'strict', 'none'])
   COOKIE_SAME_SITE!: string;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   AUTH_LOGIN_MAX_ATTEMPTS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   AUTH_LOCKOUT_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   AUTH_RATE_LIMIT_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   AUTH_RATE_LIMIT_MAX!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(8)
   AUTH_PASSWORD_MIN_LENGTH!: number;
@@ -178,7 +192,7 @@ export class EnvSchema {
   R2_REGION?: string;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(60)
   R2_UPLOAD_EXPIRES_IN?: number;
@@ -187,7 +201,7 @@ export class EnvSchema {
   @IsString()
   R2_PUBLIC_BASE_URL?: string;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   MEDIA_MAX_UPLOAD_SIZE_BYTES!: number;
@@ -201,95 +215,95 @@ export class EnvSchema {
   MEDIA_ALLOWED_IMAGE_EXTENSIONS!: string;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_MAX_FILE_SIZE_BYTES?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_MAX_ROWS?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_BATCH_SIZE?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_CONCURRENCY?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_ZIP_MAX_SIZE_BYTES?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_ZIP_MAX_FILES?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   BULK_IMPORT_ZIP_MAX_RATIO?: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(0)
   CACHE_DEFAULT_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(0)
   PRODUCT_LIST_CACHE_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(0)
   PRODUCT_DETAIL_CACHE_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(0)
   CATEGORY_CACHE_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(0)
   FILTER_CACHE_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   RATE_LIMIT_TTL_MS!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   RATE_LIMIT_MAX!: number;
 
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   JOBS_IMAGE_CONCURRENCY!: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   JOBS_CLEANUP_CONCURRENCY?: number;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   @Min(1)
   JOBS_NOTIFICATION_CONCURRENCY?: number;
@@ -313,8 +327,9 @@ export class EnvSchema {
   SEED_SUPER_ADMIN_NAME?: string;
 
   @IsOptional()
-  @IsBooleanString()
-  SWAGGER_ENABLED?: string;
+  @Transform(toBoolean)
+  @IsBoolean()
+  SWAGGER_ENABLED?: boolean;
 
   @IsOptional()
   @IsString()
@@ -329,13 +344,14 @@ export class EnvSchema {
   SMTP_HOST?: string;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(toNumber)
   @IsInt()
   SMTP_PORT?: number;
 
   @IsOptional()
-  @IsBooleanString()
-  SMTP_SECURE?: string;
+  @Transform(toBoolean)
+  @IsBoolean()
+  SMTP_SECURE?: boolean;
 
   @IsOptional()
   @IsString()
@@ -362,7 +378,7 @@ export function validateEnv(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
   const validated = plainToInstance(EnvSchema, config, {
-    enableImplicitConversion: true,
+    enableImplicitConversion: false,
   });
 
   const errors = validateSync(validated, {

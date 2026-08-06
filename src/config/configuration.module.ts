@@ -8,7 +8,6 @@ import { JobsConfig } from './jobs.config';
 import { MediaConfig } from './media.config';
 import { R2Config } from './r2.config';
 import { RedisConfig } from './redis.config';
-import { validateEnv } from './env.validation';
 
 @Global()
 @Module({
@@ -16,7 +15,6 @@ import { validateEnv } from './env.validation';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      validate: validateEnv,
     }),
   ],
   providers: [
