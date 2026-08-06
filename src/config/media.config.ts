@@ -21,7 +21,9 @@ export class MediaConfig {
     this.allowedImageExtensions = this.splitList(
       config.get('MEDIA_ALLOWED_IMAGE_EXTENSIONS'),
     );
-    this.variants = this.parseVariants(config.get('IMAGE_VARIANT_SIZES'));
+    this.variants = this.parseVariants(
+      config.get('IMAGE_VARIANT_SIZES') ?? 'thumbnail:240,small:480,medium:960,large:1600',
+    );
   }
 
   private splitList(value: string | undefined): string[] {

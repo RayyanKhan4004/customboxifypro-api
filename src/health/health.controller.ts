@@ -4,6 +4,7 @@ import { Connection } from 'mongoose';
 
 import { Public } from '../common/decorators/decorators';
 import { CacheService } from '../cache/cache.service';
+import { RedisConfig } from '../config/redis.config';
 
 interface HealthStatus {
   status: 'ok' | 'error';
@@ -15,11 +16,12 @@ export class ReadinessService {
   constructor(
     @InjectConnection() private readonly connection: Connection,
     private readonly cache: CacheService,
+    private readonly redisConfig: RedisConfig,
   ) {}
 
   async check(): Promise<HealthStatus> {
     const mongoOk = await this.pingMongo();
-    const redisOk = await this.cache.ping();
+    const redisOk = this.redisConfig.enabled ? await this.cache.ping() : true;
 
     return {
       status: mongoOk && redisOk ? 'ok' : 'error',

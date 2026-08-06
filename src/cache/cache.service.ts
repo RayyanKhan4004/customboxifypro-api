@@ -6,12 +6,18 @@ import { AppLogger } from '../common/logger/logger.service';
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
-  private readonly client: Redis;
+  private client: Redis | null = null;
+  private readonly enabled: boolean;
 
   constructor(
     private readonly config: RedisConfig,
     private readonly logger: AppLogger,
   ) {
+    this.enabled = config.enabled;
+    if (!this.enabled || !config.url) {
+      this.logger.warn('Redis disabled — running without cache');
+      return;
+    }
     this.client = new Redis(config.url, {
       lazyConnect: true,
       maxRetriesPerRequest: 2,
@@ -24,18 +30,19 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.client.connect();
+    await this.client?.connect();
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.client.quit();
+    await this.client?.quit();
   }
 
-  get raw(): Redis {
+  get raw(): Redis | null {
     return this.client;
   }
 
   async get<T>(key: string): Promise<T | null> {
+    if (!this.client) return null;
     const raw = await this.client.get(key);
     if (raw === null) return null;
     try {
@@ -46,6 +53,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async set(key: string, value: unknown, ttlMs?: number): Promise<void> {
+    if (!this.client) return;
     const serialized =
       typeof value === 'string' ? value : JSON.stringify(value);
     if (ttlMs && ttlMs > 0) {
@@ -56,14 +64,16 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async del(key: string): Promise<void> {
-    await this.client.del(key);
+    await this.client?.del(key);
   }
 
   async exists(key: string): Promise<boolean> {
+    if (!this.client) return false;
     return (await this.client.exists(key)) === 1;
   }
 
   async ping(): Promise<boolean> {
+    if (!this.client) return false;
     try {
       return (await this.client.ping()) === 'PONG';
     } catch {
@@ -71,8 +81,8 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Read (and lazily create) the version counter for a write-namespace. */
   async namespaceVersion(namespace: string): Promise<number> {
+    if (!this.client) return 1;
     const key = `ns:version:${namespace}`;
     const value = await this.client.get(key);
     if (value !== null) return Number(value);
@@ -80,17 +90,18 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return 1;
   }
 
-  /** Invalidate a namespace by bumping its version. Callers embed the version in keys. */
   async bumpNamespace(namespace: string): Promise<number> {
+    if (!this.client) return 1;
     const key = `ns:version:${namespace}`;
     return this.client.incr(key);
   }
 
   async setSessionMarker(sessionId: string, ttlMs: number): Promise<void> {
-    await this.client.set(`session:${sessionId}`, '1', 'PX', ttlMs);
+    await this.client?.set(`session:${sessionId}`, '1', 'PX', ttlMs);
   }
 
   async incrementCounter(key: string, ttlMs: number): Promise<number> {
+    if (!this.client) return 0;
     const count = await this.client.incr(key);
     if (count === 1) {
       await this.client.pexpire(key, ttlMs);
@@ -99,10 +110,11 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   }
 
   async sessionMarkerExists(sessionId: string): Promise<boolean> {
+    if (!this.client) return false;
     return (await this.client.exists(`session:${sessionId}`)) === 1;
   }
 
   async revokeSessionMarker(sessionId: string): Promise<void> {
-    await this.client.del(`session:${sessionId}`);
+    await this.client?.del(`session:${sessionId}`);
   }
 }

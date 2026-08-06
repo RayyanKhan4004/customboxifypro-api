@@ -21,7 +21,7 @@ export class R2Config {
     this.publicBucketName = config.get('R2_PUBLIC_BUCKET_NAME') || undefined;
     this.endpoint = config.get('R2_ENDPOINT') || undefined;
     this.region = config.get<string>('R2_REGION') || 'auto';
-    this.uploadExpiresIn = Number(config.get('R2_UPLOAD_EXPIRES_IN'));
+    this.uploadExpiresIn = Number(config.get('R2_UPLOAD_EXPIRES_IN') ?? 3600);
     this.publicBaseUrl = this.normalizeBaseUrl(
       config.get('R2_PUBLIC_BASE_URL'),
     );

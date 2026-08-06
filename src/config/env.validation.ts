@@ -58,10 +58,13 @@ export class EnvSchema {
   @Min(1)
   MONGODB_QUERY_TIMEOUT_MS!: number;
 
+  @IsBooleanString()
+  REDIS_ENABLED!: string;
+
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Matches(/^redis:\/\//, { message: 'REDIS_URL must start with redis://' })
-  REDIS_URL!: string;
+  REDIS_URL?: string;
 
   @IsString()
   @MinLength(32)
@@ -174,10 +177,11 @@ export class EnvSchema {
   @IsString()
   R2_REGION?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(60)
-  R2_UPLOAD_EXPIRES_IN!: number;
+  R2_UPLOAD_EXPIRES_IN?: number;
 
   @IsOptional()
   @IsString()
@@ -196,40 +200,47 @@ export class EnvSchema {
   @IsNotEmpty()
   MEDIA_ALLOWED_IMAGE_EXTENSIONS!: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_MAX_FILE_SIZE_BYTES!: number;
+  BULK_IMPORT_MAX_FILE_SIZE_BYTES?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_MAX_ROWS!: number;
+  BULK_IMPORT_MAX_ROWS?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_BATCH_SIZE!: number;
+  BULK_IMPORT_BATCH_SIZE?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_CONCURRENCY!: number;
+  BULK_IMPORT_CONCURRENCY?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_ZIP_MAX_SIZE_BYTES!: number;
+  BULK_IMPORT_ZIP_MAX_SIZE_BYTES?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_ZIP_MAX_FILES!: number;
+  BULK_IMPORT_ZIP_MAX_FILES?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  BULK_IMPORT_ZIP_MAX_RATIO!: number;
+  BULK_IMPORT_ZIP_MAX_RATIO?: number;
 
   @Type(() => Number)
   @IsInt()
@@ -271,19 +282,21 @@ export class EnvSchema {
   @Min(1)
   JOBS_IMAGE_CONCURRENCY!: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  JOBS_CLEANUP_CONCURRENCY!: number;
+  JOBS_CLEANUP_CONCURRENCY?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  JOBS_NOTIFICATION_CONCURRENCY!: number;
+  JOBS_NOTIFICATION_CONCURRENCY?: number;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  IMAGE_VARIANT_SIZES!: string;
+  IMAGE_VARIANT_SIZES?: string;
 
   @IsOptional()
   @IsString()
@@ -299,8 +312,9 @@ export class EnvSchema {
   @IsString()
   SEED_SUPER_ADMIN_NAME?: string;
 
+  @IsOptional()
   @IsBooleanString()
-  SWAGGER_ENABLED!: string;
+  SWAGGER_ENABLED?: string;
 
   @IsOptional()
   @IsString()

@@ -3,7 +3,8 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RedisConfig {
-  readonly url: string;
+  readonly enabled: boolean;
+  readonly url?: string;
   readonly defaultTtlMs: number;
   readonly productListCacheTtlMs: number;
   readonly productDetailCacheTtlMs: number;
@@ -11,7 +12,8 @@ export class RedisConfig {
   readonly filterCacheTtlMs: number;
 
   constructor(private readonly config: ConfigService) {
-    this.url = config.get<string>('REDIS_URL')!;
+    this.enabled = config.get<string>('REDIS_ENABLED') === 'true';
+    this.url = config.get<string>('REDIS_URL') || undefined;
     this.defaultTtlMs = Number(config.get('CACHE_DEFAULT_TTL_MS'));
     this.productListCacheTtlMs = Number(
       config.get('PRODUCT_LIST_CACHE_TTL_MS'),

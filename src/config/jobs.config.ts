@@ -16,24 +16,24 @@ export class JobsConfig {
 
   constructor(private readonly config: ConfigService) {
     this.bulkImportMaxFileSizeBytes = Number(
-      config.get('BULK_IMPORT_MAX_FILE_SIZE_BYTES'),
+      config.get('BULK_IMPORT_MAX_FILE_SIZE_BYTES') ?? 20971520,
     );
-    this.bulkImportMaxRows = Number(config.get('BULK_IMPORT_MAX_ROWS'));
-    this.bulkImportBatchSize = Number(config.get('BULK_IMPORT_BATCH_SIZE'));
-    this.bulkImportConcurrency = Number(config.get('BULK_IMPORT_CONCURRENCY'));
+    this.bulkImportMaxRows = Number(config.get('BULK_IMPORT_MAX_ROWS') ?? 20000);
+    this.bulkImportBatchSize = Number(config.get('BULK_IMPORT_BATCH_SIZE') ?? 500);
+    this.bulkImportConcurrency = Number(config.get('BULK_IMPORT_CONCURRENCY') ?? 2);
     this.bulkImportZipMaxSizeBytes = Number(
-      config.get('BULK_IMPORT_ZIP_MAX_SIZE_BYTES'),
+      config.get('BULK_IMPORT_ZIP_MAX_SIZE_BYTES') ?? 52428800,
     );
     this.bulkImportZipMaxFiles = Number(
-      config.get('BULK_IMPORT_ZIP_MAX_FILES'),
+      config.get('BULK_IMPORT_ZIP_MAX_FILES') ?? 500,
     );
     this.bulkImportZipMaxRatio = Number(
-      config.get('BULK_IMPORT_ZIP_MAX_RATIO'),
+      config.get('BULK_IMPORT_ZIP_MAX_RATIO') ?? 100,
     );
     this.imageConcurrency = Number(config.get('JOBS_IMAGE_CONCURRENCY'));
-    this.cleanupConcurrency = Number(config.get('JOBS_CLEANUP_CONCURRENCY'));
+    this.cleanupConcurrency = Number(config.get('JOBS_CLEANUP_CONCURRENCY') ?? 1);
     this.notificationConcurrency = Number(
-      config.get('JOBS_NOTIFICATION_CONCURRENCY'),
+      config.get('JOBS_NOTIFICATION_CONCURRENCY') ?? 1,
     );
   }
 }

@@ -38,7 +38,9 @@ import { JobsModule } from './jobs/jobs.module';
     ThrottlerModule.forRootAsync({
       inject: [CacheService, AppConfig],
       useFactory: (cache: CacheService, app: AppConfig) => ({
-        storage: new RedisThrottlerStorage(cache.raw),
+        storage: cache.raw
+          ? new RedisThrottlerStorage(cache.raw)
+          : undefined,
         throttlers: [
           {
             name: 'global',
