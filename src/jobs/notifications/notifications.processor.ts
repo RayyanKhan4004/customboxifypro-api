@@ -3,22 +3,21 @@ import { Job } from 'bullmq';
 
 import { Queues } from '../../common/constants/queues';
 import { AppLogger } from '../../common/logger/logger.service';
-import { JobsConfig } from '../../config/jobs.config';
 import { MailerService, MailMessage } from './mailer.service';
 
 type EmailJobData = MailMessage;
 
-@Processor(Queues.notifications, { concurrency: 0 })
+// Decorator options are the only place BullMQ concurrency can be set; DI is not
+// available at decoration time, so read the validated env var directly.
+@Processor(Queues.notifications, {
+  concurrency: Number(process.env.JOBS_NOTIFICATION_CONCURRENCY ?? 1) || 1,
+})
 export class NotificationProcessor extends WorkerHost {
-  private readonly concurrency: number;
-
   constructor(
     private readonly mailer: MailerService,
     private readonly logger: AppLogger,
-    jobsConfig: JobsConfig,
   ) {
     super();
-    this.concurrency = jobsConfig.notificationConcurrency;
   }
 
   async process(job: Job<EmailJobData>): Promise<void> {

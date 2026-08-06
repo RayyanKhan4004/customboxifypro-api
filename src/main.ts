@@ -17,6 +17,31 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
   app.use(cookieParser());
 
+  // CSRF defense-in-depth: cookie-authenticated admin routes reject state-changing
+  // cross-site requests. The admin panel always sends X-Requested-With, which
+  // cross-origin fetches cannot set without a CORS preflight.
+  app.use(
+    `${appConfig.apiPrefix}/admin`,
+    (req: Request, res: Response, next: NextFunction) => {
+      if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        next();
+        return;
+      }
+      if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
+        next();
+        return;
+      }
+      res.status(403).json({
+        success: false,
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'This request is missing a required security header.',
+        details: [],
+        requestId: '',
+      });
+    },
+  );
+
   app.enableCors({
     origin: appConfig.cors.allowedOrigins,
     credentials: true,
@@ -26,6 +51,7 @@ async function bootstrap(): Promise<void> {
       'Authorization',
       'x-request-id',
       'Idempotency-Key',
+      'X-Requested-With',
     ],
   });
 
@@ -61,11 +87,9 @@ async function bootstrap(): Promise<void> {
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup(`${appConfig.apiPrefix}/docs`, app, document, {
-      swaggerOptions: { persistAuthorization: true },
-    });
 
     if (appConfig.swaggerUsername && appConfig.swaggerPassword) {
+      // Must be registered before the Swagger route so it runs first.
       app.use(
         `${appConfig.apiPrefix}/docs`,
         (req: Request, res: Response, next: NextFunction) => {
@@ -80,6 +104,10 @@ async function bootstrap(): Promise<void> {
         },
       );
     }
+
+    SwaggerModule.setup(`${appConfig.apiPrefix}/docs`, app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
   }
 
   app.enableShutdownHooks();

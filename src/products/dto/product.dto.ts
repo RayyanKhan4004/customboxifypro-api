@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -10,6 +11,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -39,7 +41,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  @Max(400)
+  @MaxLength(400)
   shortDescription?: string;
 
   @IsOptional()
@@ -73,7 +75,7 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
-  @Max(100)
+  @MaxLength(100)
   sku?: string;
 
   @IsOptional()
@@ -109,7 +111,7 @@ export class CreateProductDto {
   seo?: { title?: string; description?: string; canonicalUrl?: string };
 }
 
-export class UpdateProductDto extends CreateProductDto {
+export class UpdateProductDto extends PartialType(CreateProductDto) {
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -161,7 +163,7 @@ export class PublicListProductQueryDto {
 
   @IsOptional()
   @IsString()
-  @Max(4096)
+  @MaxLength(4096)
   /** JSON array of { key, value } dynamic filter pairs, e.g. [{"key":"material","value":"kraft"}]. */
   filters?: string;
 }

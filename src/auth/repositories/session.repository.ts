@@ -25,7 +25,6 @@ export class SessionRepository {
       adminId: new Types.ObjectId(data.adminId),
       familyId: data.familyId,
       tokenHash: data.tokenHash,
-      prevHash: null,
       expiresAt: data.expiresAt,
       device: data.device ?? null,
       ip: data.ip ?? null,

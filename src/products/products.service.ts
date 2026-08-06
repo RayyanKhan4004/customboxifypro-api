@@ -80,8 +80,12 @@ export class ProductsService {
     const match: Record<string, unknown> = { ...base };
     if (facetFilters.length > 0) {
       match.$and = facetFilters.map((f) => ({
-        'facets.key': f.key,
-        'facets.value': { $in: f.values },
+        facets: {
+          $elemMatch: {
+            key: f.key,
+            value: { $in: f.values },
+          },
+        },
       }));
     }
     const sort = this.parseSort(query.sort);
@@ -196,7 +200,7 @@ export class ProductsService {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
     const match: Record<string, unknown> = query.includeDeleted
-      ? {}
+      ? { deletedAt: { $ne: null } }
       : { deletedAt: null };
     if (query.status) match.status = query.status;
     if (query.visibility) match.visibility = query.visibility;
@@ -421,11 +425,21 @@ export class ProductsService {
         'Product is already published.',
       );
     }
-    const updated = await this.repository.updateById(id, {
-      status: 'published',
-      publishedAt: new Date(),
-      updatedBy: new Types.ObjectId(admin.id),
-    });
+    const updated = await this.repository.updateByIdVersioned(
+      id,
+      product.version,
+      {
+        status: 'published',
+        publishedAt: new Date(),
+        updatedBy: new Types.ObjectId(admin.id),
+      },
+    );
+    if (!updated) {
+      throw ApiException.conflict(
+        ErrorCodes.PRODUCT_VERSION_CONFLICT,
+        'Product was modified concurrently. Reload and try again.',
+      );
+    }
     await this.cacheInvalidator.invalidateProducts();
     await this.audit.log({
       actorId: admin.id,
@@ -452,11 +466,21 @@ export class ProductsService {
         'Product is not published.',
       );
     }
-    await this.repository.updateById(id, {
-      status: 'draft',
-      publishedAt: null,
-      updatedBy: new Types.ObjectId(admin.id),
-    });
+    const updated = await this.repository.updateByIdVersioned(
+      id,
+      product.version,
+      {
+        status: 'draft',
+        publishedAt: null,
+        updatedBy: new Types.ObjectId(admin.id),
+      },
+    );
+    if (!updated) {
+      throw ApiException.conflict(
+        ErrorCodes.PRODUCT_VERSION_CONFLICT,
+        'Product was modified concurrently. Reload and try again.',
+      );
+    }
     await this.cacheInvalidator.invalidateProducts();
     await this.audit.log({
       actorId: admin.id,

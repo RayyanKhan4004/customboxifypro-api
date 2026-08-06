@@ -28,13 +28,13 @@ export class AuditLog {
   @Prop({ type: MongooseSchema.Types.Mixed, default: null })
   after!: unknown;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   ip!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   userAgent!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   requestId!: string | null;
 
   createdAt!: Date;

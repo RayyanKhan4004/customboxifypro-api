@@ -99,6 +99,22 @@ export class MediaService {
       );
     }
 
+    const stored = await this.storage.headObject(record.key);
+    // ponytail: the presigned PUT pins Content-Length/Content-Type in the SigV4
+    // signature, so only existence needs checking here.
+    if (!stored) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        'The object was never uploaded to storage.',
+      );
+    }
+    if (stored.size !== record.sizeBytes) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        'Uploaded object size does not match the declared size.',
+      );
+    }
+
     await this.repository.update(mediaId, { status: 'processing' });
     await this.imageQueue.add('generate-variants', {
       mediaId,
@@ -162,6 +178,8 @@ export class MediaService {
         'Media record not found.',
       );
     }
+    const keys = [record.key, ...Object.values(record.variants ?? {})];
+    await this.storage.deleteObjects(keys);
     await this.repository.softDelete(mediaId);
     await this.audit.log({
       actorId: admin.id,

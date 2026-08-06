@@ -31,16 +31,16 @@ export class Admin {
   @Prop({ default: 0 })
   failedLoginAttempts!: number;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lockoutUntil!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastLoginAt!: Date | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   lastLoginIp!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   passwordChangedAt!: Date | null;
 
   @Prop({ type: [String], default: [] })

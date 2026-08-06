@@ -9,6 +9,9 @@ export interface ObjectStorage {
     contentType: string,
     contentLength: number,
   ): Promise<{ url: string; method: 'PUT' }>;
+  headObject(
+    key: string,
+  ): Promise<{ size: number; contentType: string } | null>;
   getObject(key: string): Promise<Buffer>;
   putObject(key: string, body: Buffer, contentType: string): Promise<void>;
   deleteObject(key: string): Promise<void>;

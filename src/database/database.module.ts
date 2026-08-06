@@ -12,12 +12,11 @@ import { DatabaseConfig } from '../config/database.config';
       useFactory: (database: DatabaseConfig, app: AppConfig) => ({
         uri: database.uri,
         dbName: database.databaseName,
-        poolSize: database.poolSize,
+        maxPoolSize: database.poolSize,
         autoIndex: !app.isProduction,
         autoCreate: !app.isProduction,
         bufferCommands: false,
         serverSelectionTimeoutMS: 5000,
-        maxTimeMS: database.queryTimeoutMs,
         connectionFactory: (connection: Connection) => {
           connection.on('error', (error: Error) => {
             console.error('MongoDB connection error', error.message);

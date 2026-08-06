@@ -14,19 +14,19 @@ export class Session {
   @Prop({ required: true, unique: true })
   tokenHash!: string;
 
-  @Prop({ type: String, default: null })
-  prevHash!: string | null;
+  @Prop({ type: String })
+  prevHash?: string;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   device!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   ip!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: String, default: null })
   userAgent!: string | null;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastUsedAt!: Date | null;
 
   @Prop({ required: true, index: true, expires: 0 })
@@ -45,5 +45,11 @@ export class Session {
 export type SessionDocument = Session & Document;
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
-SessionSchema.index({ prevHash: 1 }, { unique: true, sparse: true });
+SessionSchema.index(
+  { prevHash: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { prevHash: { $type: 'string' } },
+  },
+);
 SessionSchema.index({ adminId: 1, revokedAt: 1 });

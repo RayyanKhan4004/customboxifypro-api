@@ -21,6 +21,14 @@ import {
   ListBulkImportQueryDto,
 } from './dto/bulk-import.dto';
 
+// Enforced at the transport layer (multer) so an oversized upload is rejected
+// before it is buffered into memory. Decorators cannot access injected config,
+// so read the validated env var directly.
+const uploadLimits = {
+  fileSize:
+    Number(process.env.BULK_IMPORT_MAX_FILE_SIZE_BYTES ?? 0) || undefined,
+};
+
 @ApiTags('admin-bulk-imports')
 @ApiBearerAuth()
 @Controller('admin/bulk-imports')
@@ -46,7 +54,7 @@ export class BulkImportController {
 
   @Post()
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: uploadLimits }))
   @Permissions(PermissionList.PRODUCTS_BULK_IMPORT)
   create(
     @Body() dto: CreateBulkImportDto,
@@ -58,7 +66,7 @@ export class BulkImportController {
 
   @Post('validate')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: uploadLimits }))
   @Permissions(PermissionList.PRODUCTS_BULK_IMPORT)
   validate(@UploadedFile() file: Express.Multer.File) {
     return this.service.validate(file);

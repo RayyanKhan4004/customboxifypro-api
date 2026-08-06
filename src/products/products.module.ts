@@ -26,6 +26,6 @@ import { Product, ProductSchema } from './schemas/product.schema';
   ],
   controllers: [AdminProductsController, PublicProductsController],
   providers: [ProductsService, ProductRepository, ProductAttributeValidator],
-  exports: [ProductsService],
+  exports: [ProductsService, ProductRepository, ProductAttributeValidator],
 })
 export class ProductsModule {}

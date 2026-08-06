@@ -13,8 +13,12 @@ export function applySoftDelete(schema: Schema): Schema {
   });
 
   const excludeDeleted = function (this: {
+    _conditions?: Record<string, unknown>;
     where: (filter: Record<string, unknown>) => void;
   }): void {
+    // Callers that explicitly scope deletedAt (findWithDeleted, includeDeleted
+    // listings) opt out of the automatic filter.
+    if (this._conditions && this._conditions.deletedAt !== undefined) return;
     this.where({ deletedAt: null });
   };
 

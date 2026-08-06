@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -46,6 +47,28 @@ export class S3ObjectStorageService implements ObjectStorage {
       expiresIn: this.config.uploadExpiresIn,
     });
     return { url, method: 'PUT' };
+  }
+
+  async headObject(
+    key: string,
+  ): Promise<{ size: number; contentType: string } | null> {
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.config.bucketName, Key: key }),
+      );
+      return {
+        size: head.ContentLength ?? 0,
+        contentType: head.ContentType ?? '',
+      };
+    } catch (error) {
+      if (
+        (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+          ?.httpStatusCode === 404
+      ) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   async getObject(key: string): Promise<Buffer> {

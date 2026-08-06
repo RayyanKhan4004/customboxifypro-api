@@ -12,6 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "db:seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -48,6 +49,9 @@
     "rxjs": "^7.8.1",
     "sharp": "^0.35.3",
     "xlsx": "^0.18.5"
+  },
+  "overrides": {
+    "js-yaml": "5.2.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
