@@ -9,6 +9,7 @@ import { ApiException } from '../../common/exceptions/api.exception';
 import { AdminPrincipal } from '../../common/interfaces/admin-principal.interface';
 import { RequestContextService } from '../../common/logger/request-context.service';
 import { AuthConfig } from '../../config/auth.config';
+import { RedisConfig } from '../../config/redis.config';
 import { AdminRepository } from '../../admins/repositories/admin.repository';
 import { RoleRepository } from '../../roles/repositories/role.repository';
 import { IS_PUBLIC_KEY } from '../../common/decorators/decorators';
@@ -24,6 +25,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly admins: AdminRepository,
     private readonly roles: RoleRepository,
     private readonly authConfig: AuthConfig,
+    private readonly redisConfig: RedisConfig,
     private readonly context: RequestContextService,
   ) {}
 
@@ -40,13 +42,15 @@ export class JwtAuthGuard implements CanActivate {
 
     const payload = this.tokens.verifyAccessToken(token);
 
-    const sessionAlive = await this.cache.sessionMarkerExists(payload.sid);
-    if (!sessionAlive) {
-      throw new ApiException(
-        ErrorCodes.AUTH_SESSION_REVOKED,
-        'The session has been revoked.',
-        401,
-      );
+    if (this.redisConfig.enabled) {
+      const sessionAlive = await this.cache.sessionMarkerExists(payload.sid);
+      if (!sessionAlive) {
+        throw new ApiException(
+          ErrorCodes.AUTH_SESSION_REVOKED,
+          'The session has been revoked.',
+          401,
+        );
+      }
     }
 
     const admin = await this.admins.findByIdLean(payload.sub);
