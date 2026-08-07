@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Request, Response } from 'express';
-import * as argon2 from 'argon2';
+import { hash, verify } from '@node-rs/argon2';
 
 import { AdminRepository } from '../admins/repositories/admin.repository';
 import { AdminDocument } from '../admins/schemas/admin.schema';
@@ -493,10 +493,10 @@ export class AuthService {
 
   private async verifyDummy(): Promise<boolean> {
     if (!this.dummyHashPromise) {
-      this.dummyHashPromise = argon2.hash('timing-equalization-dummy');
+      this.dummyHashPromise = hash('timing-equalization-dummy');
     }
-    const hash = await this.dummyHashPromise;
-    return argon2.verify(hash, 'definitely-wrong-password');
+    const h = await this.dummyHashPromise;
+    return verify(h, 'definitely-wrong-password');
   }
 
   private extractRefreshToken(req: Request): string | null {
