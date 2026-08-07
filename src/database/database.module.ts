@@ -16,7 +16,8 @@ import { DatabaseConfig } from '../config/database.config';
         autoIndex: !app.isProduction,
         autoCreate: !app.isProduction,
         bufferCommands: false,
-        serverSelectionTimeoutMS: 5000,
+        family: 4,
+        serverSelectionTimeoutMS: 10000,
         connectionFactory: (connection: Connection) => {
           connection.on('error', (error: Error) => {
             console.error('MongoDB connection error', error.message);
