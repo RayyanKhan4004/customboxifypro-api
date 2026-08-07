@@ -113,7 +113,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const port = process.env.PORT || appConfig.port;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 }
 
 void bootstrap();
