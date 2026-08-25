@@ -26,6 +26,7 @@ import { BulkImportsModule } from './bulk-imports/bulk-imports.module';
 import { CustomerRequestsModule } from './customer-requests/customer-requests.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { JobsModule } from './jobs/jobs.module';
+import { IndustriesModule } from './industries/industries.module';
 
 @Module({
   imports: [
@@ -38,9 +39,7 @@ import { JobsModule } from './jobs/jobs.module';
     ThrottlerModule.forRootAsync({
       inject: [CacheService, AppConfig],
       useFactory: (cache: CacheService, app: AppConfig) => ({
-        storage: cache.raw
-          ? new RedisThrottlerStorage(cache.raw)
-          : undefined,
+        storage: cache.raw ? new RedisThrottlerStorage(cache.raw) : undefined,
         throttlers: [
           {
             name: 'global',
@@ -63,6 +62,7 @@ import { JobsModule } from './jobs/jobs.module';
     BulkImportsModule,
     CustomerRequestsModule,
     AuditLogsModule,
+    IndustriesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

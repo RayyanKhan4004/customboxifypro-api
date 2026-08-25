@@ -51,6 +51,17 @@ function imageUrl(key: string, urls: MediaUrlMap): ProductImageResponse {
   };
 }
 
+function attributesToRecord(
+  attributes: ProductDocument['attributes'] | undefined,
+): Record<string, unknown> {
+  if (!attributes) return {};
+  return attributes instanceof Map
+    ? Object.fromEntries(attributes)
+    : typeof attributes === 'object'
+      ? { ...(attributes as Record<string, unknown>) }
+      : {};
+}
+
 export function toListItem(
   product: ProductDocument,
   urls: MediaUrlMap,
@@ -97,9 +108,7 @@ export function toDetail(
       alt: image.alt ?? '',
       isMain: image.isMain ?? false,
     })),
-    attributes: product.attributes
-      ? Object.fromEntries(product.attributes)
-      : {},
+    attributes: attributesToRecord(product.attributes),
     dimensions: (product.dimensions ?? {}) as Record<string, unknown>,
     moq: product.moq ?? null,
     customizableProperties: product.customizableProperties ?? null,

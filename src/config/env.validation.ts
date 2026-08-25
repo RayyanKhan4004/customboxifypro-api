@@ -395,5 +395,14 @@ export function validateEnv(
     );
   }
 
+  if (
+    validated.R2_ACCOUNT_ID &&
+    validated.R2_ACCESS_KEY_ID === validated.R2_ACCOUNT_ID
+  ) {
+    throw new Error(
+      'Invalid environment configuration:\nR2_ACCESS_KEY_ID must be the Access Key ID from an R2 S3 API token, not R2_ACCOUNT_ID.',
+    );
+  }
+
   return validated as unknown as Record<string, unknown>;
 }

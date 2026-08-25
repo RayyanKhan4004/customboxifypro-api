@@ -6,12 +6,13 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 
 export class PresignMediaDto {
   @IsString()
-  @Max(255)
+  @MaxLength(255)
   fileName!: string;
 
   @IsString()
@@ -31,7 +32,7 @@ export class CompleteUploadDto {
 export class UpdateMediaDto {
   @IsOptional()
   @IsString()
-  @Max(500)
+  @MaxLength(500)
   alt?: string;
 
   @IsOptional()

@@ -115,12 +115,13 @@ export class MediaService {
       );
     }
 
-    await this.repository.update(mediaId, { status: 'processing' });
-    await this.imageQueue.add('generate-variants', {
-      mediaId,
-      key: record.key,
-    });
-    return { mediaId, status: 'processing' };
+    if (record.mimeType.startsWith('image/')) {
+      await this.repository.update(mediaId, { status: 'processing' });
+      await this.imageQueue.add('generate-variants', { mediaId, key: record.key });
+      return { mediaId, status: 'processing' };
+    }
+    await this.repository.update(mediaId, { status: 'ready' });
+    return { mediaId, status: 'ready' };
   }
 
   async list(query: ListMediaQueryDto): Promise<AdminPagedData<MediaDocument>> {
@@ -217,7 +218,8 @@ export class MediaService {
   }
 
   private validateUploadRequest(dto: PresignMediaDto): void {
-    if (!this.mediaConfig.allowedImageTypes.includes(dto.mimeType)) {
+    const uploadPolicy = this.uploadPolicy(dto.mimeType);
+    if (!uploadPolicy) {
       throw ApiException.invalid(
         ErrorCodes.MEDIA_TYPE_NOT_ALLOWED,
         `MIME type "${dto.mimeType}" is not allowed.`,
@@ -229,26 +231,33 @@ export class MediaService {
         ],
       );
     }
-    if (dto.sizeBytes > this.mediaConfig.maxUploadSizeBytes) {
+    if (dto.sizeBytes > uploadPolicy.maxSizeBytes) {
       throw ApiException.invalid(
         ErrorCodes.MEDIA_TOO_LARGE,
-        `Upload exceeds the ${this.mediaConfig.maxUploadSizeBytes}-byte limit.`,
+        `Upload exceeds the ${uploadPolicy.maxSizeBytes}-byte limit.`,
         [{ field: 'sizeBytes', message: 'File is too large.' }],
       );
     }
     const extension = this.extensionOf(dto.fileName);
-    if (!this.mediaConfig.allowedImageExtensions.includes(extension)) {
+    if (!uploadPolicy.extensions.includes(extension)) {
       throw ApiException.invalid(
         ErrorCodes.MEDIA_TYPE_NOT_ALLOWED,
         `File extension ".${extension}" is not allowed.`,
         [
           {
             field: 'fileName',
-            message: `Allowed extensions: ${this.mediaConfig.allowedImageExtensions.join(', ')}.`,
+            message: `Allowed extensions: ${uploadPolicy.extensions.join(', ')}.`,
           },
         ],
       );
     }
+  }
+
+  private uploadPolicy(mimeType: string): { extensions: string[]; maxSizeBytes: number } | null {
+    if (this.mediaConfig.allowedImageTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedImageExtensions, maxSizeBytes: this.mediaConfig.maxUploadSizeBytes };
+    if (this.mediaConfig.allowedVideoTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedVideoExtensions, maxSizeBytes: this.mediaConfig.maxVideoUploadSizeBytes };
+    if (this.mediaConfig.allowedDocumentTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedDocumentExtensions, maxSizeBytes: this.mediaConfig.maxDocumentUploadSizeBytes };
+    return null;
   }
 
   private extensionOf(fileName: string): string {

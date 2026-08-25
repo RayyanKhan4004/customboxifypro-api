@@ -162,12 +162,24 @@ export class AdminsService {
     });
 
     const inviteUrl = `${this.appConfig.cors.adminUrl}/set-password?token=${token}`;
-    await this.notifications.sendEmail({
-      to: admin.email,
-      subject: 'You have been invited to the Boxify admin panel',
-      html: `<p>Set your password here: <a href="${inviteUrl}">${inviteUrl}</a>. This invitation expires in 7 days.</p>`,
-      text: `Set your password: ${inviteUrl}`,
-    });
+    try {
+      await this.notifications.sendEmail({
+        to: admin.email,
+        subject: 'You have been invited to the Boxify admin panel',
+        html: `<p>Set your password here: <a href="${inviteUrl}">${inviteUrl}</a>. This invitation expires in 7 days.</p>`,
+        text: `Set your password: ${inviteUrl}`,
+      });
+    } catch (error) {
+      await this.repository.softDelete(String(admin._id), actor.id);
+      this.logger.error('admin invitation could not be queued', {
+        adminId: String(admin._id),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw ApiException.invalid(
+        ErrorCodes.ADMIN_INVITE_INVALID,
+        'The invitation could not be queued. Please try again.',
+      );
+    }
 
     await this.audit.log({
       actorId: actor.id,

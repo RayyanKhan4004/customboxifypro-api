@@ -24,7 +24,8 @@ export class AppConfig {
   readonly pageMaxLimit: number;
 
   constructor(private readonly config: ConfigService) {
-    this.nodeEnv = (config.get<string>('NODE_ENV') ?? 'development') as AppConfig['nodeEnv'];
+    this.nodeEnv = (config.get<string>('NODE_ENV') ??
+      'development') as AppConfig['nodeEnv'];
     this.port = Number(config.get('PORT') ?? 3000);
     this.apiPrefix = config.get<string>('API_PREFIX') ?? '/api/v1';
     this.appName = config.get<string>('APP_NAME') ?? 'custom-boxify-api';
@@ -33,9 +34,12 @@ export class AppConfig {
     this.cors = {
       allowedOrigins: this.splitList(config.get('CORS_ALLOWED_ORIGINS')),
       adminUrl: config.get<string>('ADMIN_APP_URL') ?? 'http://localhost:3001',
-      clientUrl: config.get<string>('CLIENT_APP_URL') ?? 'http://localhost:3000',
+      clientUrl:
+        config.get<string>('CLIENT_APP_URL') ?? 'http://localhost:3000',
     };
-    this.swaggerEnabled = config.get('SWAGGER_ENABLED') === true || config.get<string>('SWAGGER_ENABLED') === 'true';
+    this.swaggerEnabled =
+      config.get('SWAGGER_ENABLED') === true ||
+      config.get<string>('SWAGGER_ENABLED') === 'true';
     this.swaggerUsername = config.get('SWAGGER_USERNAME') || undefined;
     this.swaggerPassword = config.get('SWAGGER_PASSWORD') || undefined;
     this.rateLimitTtlMs = Number(config.get('RATE_LIMIT_TTL_MS') ?? 60000);
