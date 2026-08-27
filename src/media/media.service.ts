@@ -99,8 +99,14 @@ export class MediaService {
       );
     }
 
+    if (record.mimeType.startsWith('image/')) {
+      await this.repository.update(mediaId, { status: 'processing' });
+      await this.imageQueue.add('generate-variants', { mediaId, key: record.key });
+      return { mediaId, status: 'processing' };
+    }
+
     const stored = await this.storage.headObject(record.key);
-    // ponytail: the presigned PUT pins Content-Length/Content-Type in the SigV4
+    // The presigned PUT pins Content-Length/Content-Type in the SigV4
     // signature, so only existence needs checking here.
     if (!stored) {
       throw ApiException.invalid(
@@ -115,11 +121,6 @@ export class MediaService {
       );
     }
 
-    if (record.mimeType.startsWith('image/')) {
-      await this.repository.update(mediaId, { status: 'processing' });
-      await this.imageQueue.add('generate-variants', { mediaId, key: record.key });
-      return { mediaId, status: 'processing' };
-    }
     await this.repository.update(mediaId, { status: 'ready' });
     return { mediaId, status: 'ready' };
   }
