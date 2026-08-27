@@ -105,22 +105,6 @@ export class MediaService {
       return { mediaId, status: 'processing' };
     }
 
-    const stored = await this.storage.headObject(record.key);
-    // The presigned PUT pins Content-Length/Content-Type in the SigV4
-    // signature, so only existence needs checking here.
-    if (!stored) {
-      throw ApiException.invalid(
-        ErrorCodes.MEDIA_UPLOAD_INVALID,
-        'The object was never uploaded to storage.',
-      );
-    }
-    if (stored.size !== record.sizeBytes) {
-      throw ApiException.invalid(
-        ErrorCodes.MEDIA_UPLOAD_INVALID,
-        'Uploaded object size does not match the declared size.',
-      );
-    }
-
     await this.repository.update(mediaId, { status: 'ready' });
     return { mediaId, status: 'ready' };
   }
