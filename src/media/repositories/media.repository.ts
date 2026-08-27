@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
-import { Media, MediaDocument } from '../schemas/media.schema';
+import { Media, MediaDocument, MediaStatus } from '../schemas/media.schema';
 
 type MongoFilter = Record<string, unknown>;
 
@@ -66,6 +66,20 @@ export class MediaRepository {
       .findByIdAndUpdate(id, { $set: data }, { new: true })
       .lean()
       .exec() as Promise<MediaDocument | null>;
+  }
+
+  async transitionStatus(
+    id: string,
+    from: MediaStatus,
+    to: MediaStatus,
+  ): Promise<boolean> {
+    const result = await this.model
+      .updateOne(
+        { _id: id, status: from, deletedAt: null },
+        { $set: { status: to } },
+      )
+      .exec();
+    return result.modifiedCount === 1;
   }
 
   async softDelete(id: string): Promise<boolean> {

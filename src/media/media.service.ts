@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
@@ -11,6 +11,7 @@ import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { AppLogger } from '../common/logger/logger.service';
 import { MediaConfig } from '../config/media.config';
 import { R2Config } from '../config/r2.config';
+import { RedisConfig } from '../config/redis.config';
 import { AdminPagedData, adminPageData } from '../common/dto/pagination.types';
 import { AuditService } from '../audit-logs/audit.service';
 import { AuditActions } from '../audit-logs/audit-actions';
@@ -18,6 +19,7 @@ import { MediaUrlMap } from './storage/object-storage.interface';
 import { S3ObjectStorageService } from './storage/s3-object-storage.service';
 import { MediaRepository } from './repositories/media.repository';
 import { MediaDocument } from './schemas/media.schema';
+import { ImageProcessingService } from './image-processing.service';
 import {
   CompleteUploadDto,
   ListMediaQueryDto,
@@ -34,6 +36,8 @@ export class MediaService {
     private readonly r2Config: R2Config,
     private readonly audit: AuditService,
     private readonly logger: AppLogger,
+    private readonly redisConfig: RedisConfig,
+    private readonly imageProcessing: ImageProcessingService,
     @InjectQueue(Queues.imageProcessing) private readonly imageQueue: Queue,
   ) {}
 
@@ -100,12 +104,49 @@ export class MediaService {
     }
 
     if (record.mimeType.startsWith('image/')) {
-      await this.repository.update(mediaId, { status: 'processing' });
-      await this.imageQueue.add('generate-variants', { mediaId, key: record.key });
+      await this.transitionPendingStatus(mediaId, 'processing');
+
+      if (!this.redisConfig.enabled) {
+        this.processImageInBackground(mediaId, record.key);
+        return { mediaId, status: 'processing' };
+      }
+
+      try {
+        await this.imageQueue.add(
+          'generate-variants',
+          { mediaId, key: record.key },
+          { jobId: `media-${mediaId}` },
+        );
+      } catch (error) {
+        let restoredPending = false;
+        try {
+          restoredPending = await this.repository.transitionStatus(
+            mediaId,
+            'processing',
+            'pending',
+          );
+        } catch (rollbackError) {
+          this.logger.error('failed to restore media after queue error', {
+            mediaId,
+            message: this.errorMessage(rollbackError),
+          });
+        }
+
+        this.logger.error('failed to enqueue media processing job', {
+          mediaId,
+          restoredPending,
+          message: this.errorMessage(error),
+        });
+        throw new ApiException(
+          ErrorCodes.MEDIA_PROCESSING_FAILED,
+          'Unable to start media processing. Please try again.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
       return { mediaId, status: 'processing' };
     }
 
-    await this.repository.update(mediaId, { status: 'ready' });
+    await this.transitionPendingStatus(mediaId, 'ready');
     return { mediaId, status: 'ready' };
   }
 
@@ -200,6 +241,36 @@ export class MediaService {
     return this.r2Config.publicBaseUrl
       ? `${this.r2Config.publicBaseUrl}/${key}`
       : `/${key}`;
+  }
+
+  private async transitionPendingStatus(
+    mediaId: string,
+    status: 'processing' | 'ready',
+  ): Promise<void> {
+    const transitioned = await this.repository.transitionStatus(
+      mediaId,
+      'pending',
+      status,
+    );
+    if (!transitioned) {
+      throw ApiException.conflict(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        'Media upload is no longer pending.',
+      );
+    }
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  private processImageInBackground(mediaId: string, key: string): void {
+    void this.imageProcessing.process(mediaId, key).catch((error: unknown) => {
+      this.logger.error('in-process image processing failed', {
+        mediaId,
+        message: this.errorMessage(error),
+      });
+    });
   }
 
   private validateUploadRequest(dto: PresignMediaDto): void {

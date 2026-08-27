@@ -7,6 +7,7 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 import { ImageProcessingProcessor } from './image-processing.processor';
+import { ImageProcessingService } from './image-processing.service';
 import { MediaRepository } from './repositories/media.repository';
 import { S3ObjectStorageService } from './storage/s3-object-storage.service';
 import { Media, MediaSchema } from './schemas/media.schema';
@@ -22,6 +23,7 @@ import { Media, MediaSchema } from './schemas/media.schema';
     MediaService,
     MediaRepository,
     S3ObjectStorageService,
+    ImageProcessingService,
     ImageProcessingProcessor,
   ],
   exports: [MediaService, S3ObjectStorageService],
