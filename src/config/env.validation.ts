@@ -198,6 +198,18 @@ export class EnvSchema {
   R2_UPLOAD_EXPIRES_IN?: number;
 
   @IsOptional()
+  @Transform(toNumber)
+  @IsInt()
+  @Min(1000)
+  R2_CONNECTION_TIMEOUT_MS?: number;
+
+  @IsOptional()
+  @Transform(toNumber)
+  @IsInt()
+  @Min(1000)
+  R2_REQUEST_TIMEOUT_MS?: number;
+
+  @IsOptional()
   @IsString()
   R2_PUBLIC_BASE_URL?: string;
 

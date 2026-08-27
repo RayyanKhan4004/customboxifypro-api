@@ -7,6 +7,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { Agent } from 'node:https';
 
 import { AppLogger } from '../../common/logger/logger.service';
 import { R2Config } from '../../config/r2.config';
@@ -27,6 +29,11 @@ export class S3ObjectStorageService implements ObjectStorage {
         accessKeyId: config.accessKeyId ?? '',
         secretAccessKey: config.secretAccessKey ?? '',
       },
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: config.connectionTimeoutMs,
+        requestTimeout: config.requestTimeoutMs,
+        httpsAgent: new Agent({ family: 4, keepAlive: true }),
+      }),
       requestChecksumCalculation: 'WHEN_REQUIRED',
       responseChecksumValidation: 'WHEN_REQUIRED',
     });
