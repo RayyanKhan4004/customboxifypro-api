@@ -1,7 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { CurrentAdmin, Permissions, Public } from '../common/decorators/decorators';
+import {
+  CurrentAdmin,
+  Permissions,
+  Public,
+} from '../common/decorators/decorators';
 import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { Permissions as PermissionList } from '../roles/permissions';
 import { CreateIndustryDto, UpdateIndustryDto } from './dto/industry.dto';
@@ -15,23 +27,35 @@ export class AdminIndustriesController {
 
   @Get()
   @Permissions(PermissionList.SETTINGS_MANAGE)
-  list(): Promise<Array<Record<string, unknown>>> { return this.industriesService.listAdmin(); }
+  list(): Promise<Array<Record<string, unknown>>> {
+    return this.industriesService.listAdmin();
+  }
 
   @Post()
   @Permissions(PermissionList.SETTINGS_MANAGE)
-  create(@Body() dto: CreateIndustryDto, @CurrentAdmin() admin: AdminPrincipal): Promise<Record<string, unknown>> {
+  create(
+    @Body() dto: CreateIndustryDto,
+    @CurrentAdmin() admin: AdminPrincipal,
+  ): Promise<Record<string, unknown>> {
     return this.industriesService.create(dto, admin.id);
   }
 
   @Patch(':id')
   @Permissions(PermissionList.SETTINGS_MANAGE)
-  update(@Param('id') id: string, @Body() dto: UpdateIndustryDto, @CurrentAdmin() admin: AdminPrincipal): Promise<Record<string, unknown>> {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateIndustryDto,
+    @CurrentAdmin() admin: AdminPrincipal,
+  ): Promise<Record<string, unknown>> {
     return this.industriesService.update(id, dto, admin.id);
   }
 
   @Delete(':id')
   @Permissions(PermissionList.SETTINGS_MANAGE)
-  remove(@Param('id') id: string, @CurrentAdmin() admin: AdminPrincipal): Promise<void> {
+  remove(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AdminPrincipal,
+  ): Promise<void> {
     return this.industriesService.remove(id, admin.id);
   }
 }
@@ -43,9 +67,13 @@ export class PublicIndustriesController {
 
   @Get()
   @Public()
-  list(): Promise<Array<Record<string, unknown>>> { return this.industriesService.listPublic(); }
+  list(): Promise<Array<Record<string, unknown>>> {
+    return this.industriesService.listPublic();
+  }
 
   @Get(':slug')
   @Public()
-  get(@Param('slug') slug: string): Promise<Record<string, unknown>> { return this.industriesService.getPublicBySlug(slug); }
+  get(@Param('slug') slug: string): Promise<Record<string, unknown>> {
+    return this.industriesService.getPublicBySlug(slug);
+  }
 }

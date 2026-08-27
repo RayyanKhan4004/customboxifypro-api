@@ -309,10 +309,24 @@ export class MediaService {
     }
   }
 
-  private uploadPolicy(mimeType: string): { extensions: string[]; maxSizeBytes: number } | null {
-    if (this.mediaConfig.allowedImageTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedImageExtensions, maxSizeBytes: this.mediaConfig.maxUploadSizeBytes };
-    if (this.mediaConfig.allowedVideoTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedVideoExtensions, maxSizeBytes: this.mediaConfig.maxVideoUploadSizeBytes };
-    if (this.mediaConfig.allowedDocumentTypes.includes(mimeType)) return { extensions: this.mediaConfig.allowedDocumentExtensions, maxSizeBytes: this.mediaConfig.maxDocumentUploadSizeBytes };
+  private uploadPolicy(
+    mimeType: string,
+  ): { extensions: string[]; maxSizeBytes: number } | null {
+    if (this.mediaConfig.allowedImageTypes.includes(mimeType))
+      return {
+        extensions: this.mediaConfig.allowedImageExtensions,
+        maxSizeBytes: this.mediaConfig.maxUploadSizeBytes,
+      };
+    if (this.mediaConfig.allowedVideoTypes.includes(mimeType))
+      return {
+        extensions: this.mediaConfig.allowedVideoExtensions,
+        maxSizeBytes: this.mediaConfig.maxVideoUploadSizeBytes,
+      };
+    if (this.mediaConfig.allowedDocumentTypes.includes(mimeType))
+      return {
+        extensions: this.mediaConfig.allowedDocumentExtensions,
+        maxSizeBytes: this.mediaConfig.maxDocumentUploadSizeBytes,
+      };
     return null;
   }
 

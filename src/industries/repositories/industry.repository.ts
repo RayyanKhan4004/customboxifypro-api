@@ -11,7 +11,10 @@ export class IndustryRepository {
   ) {}
 
   async findById(id: string): Promise<IndustryDocument | null> {
-    return this.model.findById(id).lean().exec() as Promise<IndustryDocument | null>;
+    return this.model
+      .findById(id)
+      .lean()
+      .exec() as Promise<IndustryDocument | null>;
   }
 
   async findActiveBySlug(slug: string): Promise<IndustryDocument | null> {
@@ -22,11 +25,19 @@ export class IndustryRepository {
   }
 
   async listActive(): Promise<IndustryDocument[]> {
-    return this.model.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean().exec() as Promise<IndustryDocument[]>;
+    return this.model
+      .find({ isActive: true })
+      .sort({ sortOrder: 1, name: 1 })
+      .lean()
+      .exec() as Promise<IndustryDocument[]>;
   }
 
   async listAll(): Promise<IndustryDocument[]> {
-    return this.model.find().sort({ sortOrder: 1, name: 1 }).lean().exec() as Promise<IndustryDocument[]>;
+    return this.model
+      .find()
+      .sort({ sortOrder: 1, name: 1 })
+      .lean()
+      .exec() as Promise<IndustryDocument[]>;
   }
 
   async countBySlug(slug: string, excludeId?: string): Promise<number> {
@@ -39,12 +50,23 @@ export class IndustryRepository {
     return this.model.create(data);
   }
 
-  async update(id: string, data: Partial<Industry>): Promise<IndustryDocument | null> {
-    return this.model.findByIdAndUpdate(id, { $set: data }, { new: true }).lean().exec() as Promise<IndustryDocument | null>;
+  async update(
+    id: string,
+    data: Partial<Industry>,
+  ): Promise<IndustryDocument | null> {
+    return this.model
+      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .lean()
+      .exec() as Promise<IndustryDocument | null>;
   }
 
   async softDelete(id: string): Promise<boolean> {
-    const result = await this.model.updateOne({ _id: id, deletedAt: null }, { $set: { deletedAt: new Date() } }).exec();
+    const result = await this.model
+      .updateOne(
+        { _id: id, deletedAt: null },
+        { $set: { deletedAt: new Date() } },
+      )
+      .exec();
     return result.modifiedCount > 0;
   }
 }

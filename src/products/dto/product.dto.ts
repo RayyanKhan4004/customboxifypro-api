@@ -14,7 +14,26 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+
+export class ProductImageInput {
+  @IsString()
+  key!: string;
+
+  @IsOptional()
+  @IsString()
+  alt?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isMain?: boolean;
+}
 
 const SORT_FIELDS = [
   'createdAt',
@@ -81,8 +100,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
-  @IsObject({ each: true })
-  images?: Array<{ key: string; alt: string; order: number; isMain: boolean }>;
+  @ValidateNested({ each: true })
+  @Type(() => ProductImageInput)
+  images?: ProductImageInput[];
 
   @IsOptional()
   @IsObject()

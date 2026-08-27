@@ -810,7 +810,11 @@ export class ProductsService {
     return facets;
   }
 
-  private normalizeImages(images: ProductImage[]): ProductImage[] {
+  private normalizeImages(
+    images: Array<
+      Pick<ProductImage, 'key'> & Partial<Omit<ProductImage, 'key'>>
+    >,
+  ): ProductImage[] {
     if (!images || images.length === 0) return [];
     const normalized = images.map((image, index) => ({
       key: image.key,
