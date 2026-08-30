@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -16,7 +17,11 @@ import {
 } from '../common/decorators/decorators';
 import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { Permissions as PermissionList } from '../roles/permissions';
-import { CreateIndustryDto, UpdateIndustryDto } from './dto/industry.dto';
+import {
+  CreateIndustryDto,
+  ListPublicIndustriesQueryDto,
+  UpdateIndustryDto,
+} from './dto/industry.dto';
 import { IndustriesService } from './industries.service';
 
 @ApiTags('admin-industries')
@@ -67,8 +72,10 @@ export class PublicIndustriesController {
 
   @Get()
   @Public()
-  list(): Promise<Array<Record<string, unknown>>> {
-    return this.industriesService.listPublic();
+  list(
+    @Query() query: ListPublicIndustriesQueryDto,
+  ): Promise<Array<Record<string, unknown>>> {
+    return this.industriesService.listPublic(query.search);
   }
 
   @Get(':slug')

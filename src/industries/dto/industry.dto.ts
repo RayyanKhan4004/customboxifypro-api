@@ -56,3 +56,10 @@ export class CreateIndustryDto {
 }
 
 export class UpdateIndustryDto extends CreateIndustryDto {}
+
+export class ListPublicIndustriesQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+}

@@ -24,9 +24,13 @@ export class IndustryRepository {
       .exec() as Promise<IndustryDocument | null>;
   }
 
-  async listActive(): Promise<IndustryDocument[]> {
+  async listActive(search?: string): Promise<IndustryDocument[]> {
+    const filter: Record<string, unknown> = { isActive: true };
+    if (search) {
+      filter.name = { $regex: this.escapeRegex(search), $options: 'i' };
+    }
     return this.model
-      .find({ isActive: true })
+      .find(filter)
       .sort({ sortOrder: 1, name: 1 })
       .lean()
       .exec() as Promise<IndustryDocument[]>;
@@ -68,5 +72,9 @@ export class IndustryRepository {
       )
       .exec();
     return result.modifiedCount > 0;
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }

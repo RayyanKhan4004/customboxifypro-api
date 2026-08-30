@@ -6,6 +6,7 @@ import { ErrorCodes } from '../common/constants/error-codes';
 import { ApiException } from '../common/exceptions/api.exception';
 import { AppLogger } from '../common/logger/logger.service';
 import { slugify } from '../common/utils/strings';
+import { MediaService } from '../media/media.service';
 import { CreateIndustryDto, UpdateIndustryDto } from './dto/industry.dto';
 import { IndustryRepository } from './repositories/industry.repository';
 import { IndustryDocument } from './schemas/industry.schema';
@@ -14,12 +15,13 @@ import { IndustryDocument } from './schemas/industry.schema';
 export class IndustriesService {
   constructor(
     private readonly repository: IndustryRepository,
+    private readonly mediaService: MediaService,
     private readonly audit: AuditService,
     private readonly logger: AppLogger,
   ) {}
 
-  async listPublic(): Promise<Array<Record<string, unknown>>> {
-    return this.toDto(await this.repository.listActive());
+  async listPublic(search?: string): Promise<Array<Record<string, unknown>>> {
+    return this.toDto(await this.repository.listActive(search?.trim()));
   }
 
   async getPublicBySlug(slug: string): Promise<Record<string, unknown>> {
@@ -30,7 +32,7 @@ export class IndustriesService {
         'Industry not found.',
       );
     }
-    return this.toDto([industry])[0];
+    return (await this.toDto([industry]))[0];
   }
 
   async listAdmin(): Promise<Array<Record<string, unknown>>> {
@@ -123,9 +125,12 @@ export class IndustriesService {
     }
   }
 
-  private toDto(
+  private async toDto(
     industries: IndustryDocument[],
-  ): Array<Record<string, unknown>> {
+  ): Promise<Array<Record<string, unknown>>> {
+    const mediaUrls = await this.mediaService.resolveUrls(
+      industries.map((industry) => industry.imageKey ?? ''),
+    );
     return industries.map((industry) => ({
       id: String(industry._id),
       name: industry.name,
@@ -134,6 +139,7 @@ export class IndustriesService {
       bestFor: industry.bestFor,
       specifications: industry.specifications,
       imageKey: industry.imageKey,
+      imageUrl: industry.imageKey ? mediaUrls[industry.imageKey]?.url ?? null : null,
       sortOrder: industry.sortOrder,
       isActive: industry.isActive,
     }));

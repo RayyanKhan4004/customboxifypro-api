@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { MediaModule } from '../media/media.module';
 import {
   AdminIndustriesController,
   PublicIndustriesController,
@@ -16,6 +17,7 @@ import { Industry, IndustrySchema } from './schemas/industry.schema';
       { name: Industry.name, schema: IndustrySchema },
     ]),
     AuditLogsModule,
+    MediaModule,
   ],
   controllers: [AdminIndustriesController, PublicIndustriesController],
   providers: [IndustriesService, IndustryRepository],
