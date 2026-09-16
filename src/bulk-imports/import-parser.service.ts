@@ -21,6 +21,16 @@ export class ImportParserService {
   constructor(private readonly jobsConfig: JobsConfig) {}
 
   async parse(buffer: Buffer, fileName: string): Promise<ParsedImport> {
+    if (
+      buffer.length === 0 ||
+      buffer.length > this.jobsConfig.bulkImportMaxFileSizeBytes
+    ) {
+      throw ApiException.invalid(
+        ErrorCodes.IMPORT_INVALID_FILE,
+        'Upload a non-empty file within the configured size limit.',
+        [{ field: 'file' }],
+      );
+    }
     const extension = this.extensionOf(fileName);
     if (extension === 'zip') {
       return this.parseZip(buffer);
@@ -211,6 +221,13 @@ export class ImportParserService {
   }
 
   private assertRowLimit(count: number): void {
+    if (count === 0) {
+      throw ApiException.invalid(
+        ErrorCodes.IMPORT_INVALID_FILE,
+        'The file contains no product rows.',
+        [{ field: 'file' }],
+      );
+    }
     if (count > this.jobsConfig.bulkImportMaxRows) {
       throw ApiException.invalid(
         ErrorCodes.IMPORT_TOO_MANY_ROWS,

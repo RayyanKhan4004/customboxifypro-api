@@ -83,6 +83,12 @@ export class ProductRepository {
     return this.model.create(data);
   }
 
+  async createManyAtomic(products: Partial<Product>[]): Promise<void> {
+    await this.model.db.transaction(async (session) => {
+      await this.model.insertMany(products, { session, ordered: true });
+    });
+  }
+
   async updateById(
     id: string,
     data: Partial<Product>,

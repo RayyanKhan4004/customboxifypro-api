@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -9,6 +9,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUrl,
   Matches,
   Max,
   MaxLength,
@@ -48,7 +49,28 @@ export function isSortField(value: string): boolean {
   return SORT_FIELDS.includes(value as (typeof SORT_FIELDS)[number]);
 }
 
+export class ProductSeoInput {
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_tld: false,
+  })
+  canonicalUrl?: string;
+}
+
 export class CreateProductDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(2)
   name!: string;
@@ -121,14 +143,16 @@ export class CreateProductDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  moq?: number;
+  moq?: number | null;
 
   @IsOptional()
   customizableProperties?: unknown;
 
   @IsOptional()
   @IsObject()
-  seo?: { title?: string; description?: string; canonicalUrl?: string };
+  @ValidateNested()
+  @Type(() => ProductSeoInput)
+  seo?: ProductSeoInput;
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {

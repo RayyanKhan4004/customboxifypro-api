@@ -247,12 +247,15 @@ export class ProductsService {
     admin: AdminPrincipal,
   ): Promise<Record<string, unknown>> {
     await this.assertCategoryExists(dto.categoryId, dto.subcategoryId);
-    const definitions = await this.filterService.listActive();
-    const attributes = this.attributeValidator.validate(
-      dto.attributes ?? {},
-      definitions,
-      dto.categoryId,
-    );
+    // The simplified editor omits attributes; explicit API attributes remain validated.
+    const attributes =
+      dto.attributes === undefined
+        ? { attributes: new Map<string, unknown>(), facets: [] }
+        : this.attributeValidator.validate(
+            dto.attributes,
+            await this.filterService.listActive(),
+            dto.categoryId,
+          );
 
     const slug = dto.slug ?? slugify(dto.name);
     if (await this.repository.countBySlug(slug)) {
@@ -322,9 +325,22 @@ export class ProductsService {
 
     const next: Partial<Product> = {};
     if (dto.name !== undefined) next.name = dto.name;
+    if (dto.categoryId !== undefined || dto.subcategoryId !== undefined) {
+      await this.assertCategoryExists(
+        dto.categoryId ?? existing.categoryId.toString(),
+        dto.subcategoryId ??
+          (dto.categoryId && dto.categoryId !== existing.categoryId.toString()
+            ? undefined
+            : existing.subcategoryId?.toString()),
+      );
+    }
     if (dto.categoryId !== undefined) {
-      await this.assertCategoryExists(dto.categoryId, dto.subcategoryId);
       next.categoryId = new Types.ObjectId(dto.categoryId);
+      if (
+        dto.categoryId !== existing.categoryId.toString() &&
+        dto.subcategoryId === undefined
+      )
+        next.subcategoryId = null;
     }
     if (dto.subcategoryId !== undefined)
       next.subcategoryId = dto.subcategoryId

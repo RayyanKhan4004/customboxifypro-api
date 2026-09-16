@@ -27,6 +27,8 @@ import { CustomerRequestsModule } from './customer-requests/customer-requests.mo
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { JobsModule } from './jobs/jobs.module';
 import { IndustriesModule } from './industries/industries.module';
+import { PackagingStylesModule } from './packaging-styles/packaging-styles.module';
+import { HomePageModule } from './home-page/home-page.module';
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { IndustriesModule } from './industries/industries.module';
     CustomerRequestsModule,
     AuditLogsModule,
     IndustriesModule,
+    PackagingStylesModule,
+    HomePageModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
@@ -75,3 +79,4 @@ export class AppModule implements NestModule {
     consumer.apply(RequestIdMiddleware).forRoutes('*');
   }
 }
+

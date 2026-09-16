@@ -87,6 +87,7 @@ export class BulkImportService {
         [{ field: 'file' }],
       );
     }
+    await this.parser.parse(file.buffer, file.originalname);
     const key = `imports/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${this.extensionOf(file.originalname)}`;
     await this.storage.putObject(key, file.buffer, file.mimetype);
 
@@ -98,7 +99,15 @@ export class BulkImportService {
       status: 'queued',
     });
 
-    await this.bulkQueue.add('import', { importId: String(created._id) });
+    try {
+      await this.bulkQueue.add('import', { importId: String(created._id) });
+    } catch (error) {
+      await this.repository.update(String(created._id), {
+        status: 'failed',
+        completedAt: new Date(),
+      });
+      throw error;
+    }
     await this.audit.log({
       actorId: admin.id,
       action: AuditActions.PRODUCT_IMPORT_STARTED,
@@ -122,17 +131,19 @@ export class BulkImportService {
     const categories = await this.categoryRepository.listAll();
     const defs = await this.filterService.listActive();
     const errors: ImportRowError[] = [];
-    for (const row of parsed.rows) {
+    const usedSlugs = new Set<string>();
+    const usedSkus = new Set<string>();
+    for (const [index, row] of parsed.rows.entries()) {
       const result = await this.buildProduct(
         row,
         parsed.images,
         categories,
         defs,
-        new Set(),
-        new Set(),
+        usedSlugs,
+        usedSkus,
         false,
       );
-      if (!result.ok) errors.push(result.error!);
+      if (!result.ok) errors.push({ ...result.error!, row: index + 2 });
     }
     return {
       valid: errors.length === 0,
@@ -258,6 +269,12 @@ export class BulkImportService {
         `Import cannot be retried in state "${doc.status}".`,
       );
     }
+    if (doc.successCount > 0) {
+      throw ApiException.conflict(
+        ErrorCodes.IMPORT_CANNOT_RETRY,
+        'This import already saved products. Upload a corrected file containing only the remaining rows.',
+      );
+    }
     await this.repository.update(id, {
       status: 'queued',
       rowErrors: [],
@@ -305,6 +322,27 @@ export class BulkImportService {
 
   /** Worker entry point. Runs one import end-to-end with progress + cancellation. */
   async runImport(importId: string): Promise<void> {
+    try {
+      await this.executeImport(importId);
+    } catch (error) {
+      await this.repository.update(importId, {
+        status: 'failed',
+        completedAt: new Date(),
+        errorCount: 1,
+        rowErrors: [
+          {
+            code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+            message:
+              'Import processing failed. Check the file and retry; contact support if the problem persists.',
+          },
+        ],
+      });
+      await this.cacheInvalidator.invalidateProducts();
+      throw error;
+    }
+  }
+
+  private async executeImport(importId: string): Promise<void> {
     const doc = await this.repository.findById(importId);
     if (!doc || doc.status !== 'queued') return;
 
@@ -351,10 +389,28 @@ export class BulkImportService {
       return;
     }
 
+    if (doc.mode === 'all-or-nothing') {
+      if (await this.cancelled(importId)) return;
+      await this.productRepository.createManyAtomic(
+        validProducts.map(({ product }) => product),
+      );
+      await this.repository.update(importId, {
+        status: 'completed',
+        successCount: validProducts.length,
+        processedRows: parsed.rows.length,
+        errorCount: 0,
+        rowErrors: [],
+        completedAt: new Date(),
+      });
+      await this.cacheInvalidator.invalidateProducts();
+      return;
+    }
+
     let successCount = 0;
     const batchSize = this.jobsConfig.bulkImportBatchSize;
     for (let start = 0; start < validProducts.length; start += batchSize) {
       if (await this.cancelled(importId)) {
+        await this.cacheInvalidator.invalidateProducts();
         await this.repository.update(importId, {
           status: 'cancelled',
           completedAt: new Date(),
@@ -417,13 +473,13 @@ export class BulkImportService {
     uploadImages: boolean,
   ): Promise<RowBuildResult> {
     const name = (row.name ?? '').trim();
-    if (!name)
+    if (name.length < 2)
       return {
         ok: false,
         error: {
           field: 'name',
           code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
-          message: 'name is required.',
+          message: 'Name must contain at least 2 characters.',
         },
       };
 
@@ -463,6 +519,16 @@ export class BulkImportService {
 
     let slug = (row.slug ?? '').trim().toLowerCase();
     if (!slug) slug = slugify(name);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      return {
+        ok: false,
+        error: {
+          field: 'slug',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Use lowercase letters, numbers, and hyphens for the slug.',
+        },
+      };
+    }
     if (usedSlugs.has(slug))
       return {
         ok: false,
@@ -533,6 +599,30 @@ export class BulkImportService {
       .map((t) => t.trim())
       .filter(Boolean);
     const moq = (row.moq ?? '').trim() ? Number(row.moq) : null;
+    if (moq !== null && (!Number.isSafeInteger(moq) || moq < 1)) {
+      return {
+        ok: false,
+        error: {
+          field: 'moq',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'MOQ must be a whole number of at least 1.',
+        },
+      };
+    }
+    if (
+      (row.shortDescription ?? '').trim().length > 400 ||
+      (sku?.length ?? 0) > 100 ||
+      tags.length > 50
+    ) {
+      return {
+        ok: false,
+        error: {
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message:
+            'Use at most 400 characters for the short description, 100 for SKU, and 50 tags.',
+        },
+      };
+    }
 
     const product: Partial<Product> = {
       name,
@@ -542,7 +632,9 @@ export class BulkImportService {
       categoryId: category._id,
       subcategoryId,
       status,
-      visibility: 'public',
+      visibility: ['internal', 'hidden'].includes((row.visibility ?? '').trim())
+        ? (row.visibility.trim() as Product['visibility'])
+        : 'public',
       featured,
       tags,
       sku,
@@ -558,6 +650,29 @@ export class BulkImportService {
       .split('|')
       .map((v) => v.trim())
       .filter(Boolean);
+    if (imageRefs.length > 20) {
+      return {
+        ok: false,
+        error: {
+          field: 'images',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'A product can have at most 20 images.',
+        },
+      };
+    }
+    if (
+      images.size > 0 &&
+      imageRefs.some((ref) => !images.has(ref.toLowerCase()))
+    ) {
+      return {
+        ok: false,
+        error: {
+          field: 'images',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'A referenced image is missing from the ZIP archive.',
+        },
+      };
+    }
     if (uploadImages && imageRefs.length > 0) {
       const productImages: ProductImage[] = [];
       const uploadedKeys =

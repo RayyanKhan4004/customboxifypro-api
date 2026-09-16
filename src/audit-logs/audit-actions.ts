@@ -20,6 +20,10 @@ export const AuditActions = {
   INDUSTRY_CREATED: 'industry.created',
   INDUSTRY_UPDATED: 'industry.updated',
   INDUSTRY_DELETED: 'industry.deleted',
+  PACKAGING_STYLE_CREATED: 'packaging_style.created',
+  PACKAGING_STYLE_UPDATED: 'packaging_style.updated',
+  PACKAGING_STYLE_DELETED: 'packaging_style.deleted',
+  HOME_PAGE_UPDATED: 'home_page.updated',
   FILTER_CREATED: 'filter.created',
   FILTER_UPDATED: 'filter.updated',
   FILTER_DELETED: 'filter.deleted',
@@ -43,3 +47,4 @@ export const AuditActions = {
   REQUEST_NOTE_ADDED: 'request.note_added',
   REQUEST_BULK_STATUS_CHANGED: 'request.bulk_status_changed',
 } as const;
+
