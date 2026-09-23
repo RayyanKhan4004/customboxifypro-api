@@ -16,6 +16,7 @@ import { AppLogger } from '../common/logger/logger.service';
 import { slugify } from '../common/utils/strings';
 import { Queues } from '../common/constants/queues';
 import { JobsConfig } from '../config/jobs.config';
+import { RedisConfig } from '../config/redis.config';
 import { CategoryRepository } from '../categories/repositories/category.repository';
 import { FilterDefinitionsService } from '../filter-definitions/filter-definitions.service';
 import { FilterDefinition } from '../filter-definitions/schemas/filter-definition.schema';
@@ -42,7 +43,21 @@ const KNOWN_FIELDS = new Set([
   'sku',
   'moq',
   'images',
+  'imageAlts',
+  'length',
+  'width',
+  'height',
+  'weight',
+  'dimensionUnit',
+  'customizableProperties',
+  'seoTitle',
+  'seoDescription',
+  'canonicalUrl',
 ]);
+
+function csvCell(value: string): string {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
 
 interface RowBuildResult {
   ok: boolean;
@@ -52,6 +67,8 @@ interface RowBuildResult {
 
 @Injectable()
 export class BulkImportService {
+  private readonly activeImports = new Set<string>();
+
   constructor(
     private readonly repository: BulkImportRepository,
     private readonly parser: ImportParserService,
@@ -64,6 +81,7 @@ export class BulkImportService {
     private readonly cacheInvalidator: CacheInvalidationService,
     private readonly audit: AuditService,
     private readonly jobsConfig: JobsConfig,
+    private readonly redisConfig: RedisConfig,
     private readonly logger: AppLogger,
     @InjectQueue(Queues.bulkImport) private readonly bulkQueue: Queue,
   ) {}
@@ -100,7 +118,7 @@ export class BulkImportService {
     });
 
     try {
-      await this.bulkQueue.add('import', { importId: String(created._id) });
+      await this.dispatchImport(String(created._id));
     } catch (error) {
       await this.repository.update(String(created._id), {
         status: 'failed',
@@ -275,6 +293,12 @@ export class BulkImportService {
         'This import already saved products. Upload a corrected file containing only the remaining rows.',
       );
     }
+    if (this.activeImports.has(id)) {
+      throw ApiException.conflict(
+        ErrorCodes.IMPORT_CANNOT_RETRY,
+        'Cancellation is still finishing. Wait a moment before retrying.',
+      );
+    }
     await this.repository.update(id, {
       status: 'queued',
       rowErrors: [],
@@ -285,7 +309,7 @@ export class BulkImportService {
       completedAt: null,
     });
     await this.cache.del(this.cancelKey(id));
-    await this.bulkQueue.add('import', { importId: id });
+    await this.dispatchImport(id);
     await this.audit.log({
       actorId: admin.id,
       action: AuditActions.PRODUCT_IMPORT_RETRY,
@@ -313,15 +337,30 @@ export class BulkImportService {
       sku: 'SAMPLE-001',
       moq: '100',
       images: 'sample-1.jpg|sample-2.jpg',
+      imageAlts: 'Front view|Side view',
+      length: '30',
+      width: '20',
+      height: '10',
+      weight: '0.5',
+      dimensionUnit: 'cm',
+      customizableProperties: '{"printSides":["outside","inside"]}',
+      seoTitle: 'Custom Kraft Mailer Box',
+      seoDescription: 'Recyclable kraft mailer boxes made to order.',
+      canonicalUrl: 'https://example.com/products/sample-kraft-mailer-box',
     };
     const sampleRow = header.map(
       (column) => (sample as Record<string, string>)[column] ?? '',
     );
-    return [header.join(','), sampleRow.join(',')].join('\n');
+    return [
+      header.map(csvCell).join(','),
+      sampleRow.map(csvCell).join(','),
+    ].join('\n');
   }
 
   /** Worker entry point. Runs one import end-to-end with progress + cancellation. */
   async runImport(importId: string): Promise<void> {
+    if (this.activeImports.has(importId)) return;
+    this.activeImports.add(importId);
     try {
       await this.executeImport(importId);
     } catch (error) {
@@ -339,6 +378,8 @@ export class BulkImportService {
       });
       await this.cacheInvalidator.invalidateProducts();
       throw error;
+    } finally {
+      this.activeImports.delete(importId);
     }
   }
 
@@ -588,12 +629,49 @@ export class BulkImportService {
       };
     }
 
-    const status = ['published', 'archived'].includes((row.status ?? '').trim())
-      ? (row.status.trim() as Product['status'])
-      : 'draft';
-    const featured = ['true', '1'].includes(
-      (row.featured ?? '').trim().toLowerCase(),
-    );
+    const statusInput = (row.status ?? '').trim().toLowerCase();
+    if (
+      statusInput &&
+      !['draft', 'published', 'archived'].includes(statusInput)
+    ) {
+      return {
+        ok: false,
+        error: {
+          field: 'status',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Status must be draft, published, or archived.',
+        },
+      };
+    }
+    const status = (statusInput || 'draft') as Product['status'];
+
+    const visibilityInput = (row.visibility ?? '').trim().toLowerCase();
+    if (
+      visibilityInput &&
+      !['public', 'internal', 'hidden'].includes(visibilityInput)
+    ) {
+      return {
+        ok: false,
+        error: {
+          field: 'visibility',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Visibility must be public, internal, or hidden.',
+        },
+      };
+    }
+
+    const featuredInput = (row.featured ?? '').trim().toLowerCase();
+    if (featuredInput && !['true', 'false', '1', '0'].includes(featuredInput)) {
+      return {
+        ok: false,
+        error: {
+          field: 'featured',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Featured must be true, false, 1, or 0.',
+        },
+      };
+    }
+    const featured = ['true', '1'].includes(featuredInput);
     const tags = (row.tags ?? '')
       .split('|')
       .map((t) => t.trim())
@@ -624,6 +702,75 @@ export class BulkImportService {
       };
     }
 
+    const dimensions: Product['dimensions'] = {};
+    for (const field of ['length', 'width', 'height', 'weight'] as const) {
+      const rawValue = (row[field] ?? '').trim();
+      if (!rawValue) continue;
+      const value = Number(rawValue);
+      if (!Number.isFinite(value) || value < 0) {
+        return {
+          ok: false,
+          error: {
+            field,
+            code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+            message: `${field} must be a non-negative number.`,
+          },
+        };
+      }
+      dimensions[field] = value;
+    }
+    const dimensionUnit = (row.dimensionUnit ?? '').trim().toLowerCase();
+    if (dimensionUnit && !['mm', 'cm', 'in'].includes(dimensionUnit)) {
+      return {
+        ok: false,
+        error: {
+          field: 'dimensionUnit',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Dimension unit must be mm, cm, or in.',
+        },
+      };
+    }
+    dimensions.unit = dimensionUnit || 'cm';
+
+    let customizableProperties: Record<string, unknown> | null = null;
+    const customizableJson = (row.customizableProperties ?? '').trim();
+    if (customizableJson) {
+      try {
+        const parsed: unknown = JSON.parse(customizableJson);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Customization JSON must be an object.');
+        }
+        customizableProperties = parsed as Record<string, unknown>;
+      } catch {
+        return {
+          ok: false,
+          error: {
+            field: 'customizableProperties',
+            code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+            message: 'Customizable properties must be a valid JSON object.',
+          },
+        };
+      }
+    }
+
+    const canonicalUrl = (row.canonicalUrl ?? '').trim();
+    if (canonicalUrl) {
+      try {
+        const parsedUrl = new URL(canonicalUrl);
+        if (!['http:', 'https:'].includes(parsedUrl.protocol))
+          throw new Error();
+      } catch {
+        return {
+          ok: false,
+          error: {
+            field: 'canonicalUrl',
+            code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+            message: 'Canonical URL must be a valid HTTP or HTTPS URL.',
+          },
+        };
+      }
+    }
+
     const product: Partial<Product> = {
       name,
       slug,
@@ -632,16 +779,21 @@ export class BulkImportService {
       categoryId: category._id,
       subcategoryId,
       status,
-      visibility: ['internal', 'hidden'].includes((row.visibility ?? '').trim())
-        ? (row.visibility.trim() as Product['visibility'])
-        : 'public',
+      visibility: (visibilityInput || 'public') as Product['visibility'],
       featured,
       tags,
       sku,
       moq,
       attributes,
       facets,
+      dimensions,
       images: [],
+      customizableProperties,
+      seo: {
+        title: (row.seoTitle ?? '').trim(),
+        description: (row.seoDescription ?? '').trim(),
+        canonicalUrl,
+      },
       publishedAt: status === 'published' ? new Date() : null,
       version: 1,
     };
@@ -650,6 +802,19 @@ export class BulkImportService {
       .split('|')
       .map((v) => v.trim())
       .filter(Boolean);
+    const imageAlts = (row.imageAlts ?? '')
+      .split('|')
+      .map((value) => value.trim());
+    if (imageAlts.filter(Boolean).length > imageRefs.length) {
+      return {
+        ok: false,
+        error: {
+          field: 'imageAlts',
+          code: ErrorCodes.PRODUCT_VALIDATION_FAILED,
+          message: 'Image alt text entries cannot outnumber image references.',
+        },
+      };
+    }
     if (imageRefs.length > 20) {
       return {
         ok: false,
@@ -682,7 +847,7 @@ export class BulkImportService {
       for (const key of uploadedKeys) {
         productImages.push({
           key,
-          alt: '',
+          alt: imageAlts[productImages.length] ?? '',
           order: productImages.length,
           isMain: productImages.length === 0,
         });
@@ -711,7 +876,28 @@ export class BulkImportService {
   }
 
   private async cancelled(importId: string): Promise<boolean> {
-    return this.cache.exists(this.cancelKey(importId));
+    if (await this.cache.exists(this.cancelKey(importId))) return true;
+    const record = await this.repository.findById(importId);
+    return record?.status === 'cancelled';
+  }
+
+  private async dispatchImport(importId: string): Promise<void> {
+    if (this.redisConfig.enabled) {
+      await this.bulkQueue.add('import', { importId });
+      return;
+    }
+
+    // Redis is optional at the current scale. Keep the request fast and run the
+    // same worker entry point in-process; persisted status remains the source of
+    // truth for progress and cancellation.
+    queueMicrotask(() => {
+      void this.runImport(importId).catch((error: unknown) => {
+        this.logger.error('in-process bulk import failed', {
+          importId,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      });
+    });
   }
 
   private cancelKey(importId: string): string {

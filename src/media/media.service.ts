@@ -79,6 +79,128 @@ export class MediaService {
     };
   }
 
+  async presignRequestAttachment(
+    dto: PresignMediaDto,
+  ): Promise<Record<string, unknown>> {
+    this.validateUploadRequest(dto);
+    if (!this.mediaConfig.allowedImageTypes.includes(dto.mimeType)) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_TYPE_NOT_ALLOWED,
+        'Request attachments must be images.',
+        [{ field: 'mimeType', message: 'Upload a supported image file.' }],
+      );
+    }
+
+    const extension = this.extensionOf(dto.fileName);
+    const key = `request-attachments/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${extension}`;
+    const uploadId = randomUUID();
+    const record = await this.repository.create({
+      key,
+      uploadId,
+      originalName: dto.fileName,
+      mimeType: dto.mimeType,
+      sizeBytes: dto.sizeBytes,
+      createdBy: null,
+    });
+    const { url, method } = await this.storage.createPresignedUpload(
+      key,
+      dto.mimeType,
+      dto.sizeBytes,
+    );
+    return {
+      mediaId: record._id.toString(),
+      uploadId,
+      key,
+      url,
+      method,
+      expiresIn: this.r2Config.uploadExpiresIn,
+    };
+  }
+
+  async uploadRequestAttachment(
+    file: Express.Multer.File,
+  ): Promise<Record<string, unknown>> {
+    this.validateUploadRequest({
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+    });
+    if (!this.mediaConfig.allowedImageTypes.includes(file.mimetype)) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_TYPE_NOT_ALLOWED,
+        'Request attachments must be images.',
+        [{ field: 'attachment', message: 'Upload a supported image file.' }],
+      );
+    }
+
+    const extension = this.extensionOf(file.originalname);
+    const key = `request-attachments/${new Date().toISOString().slice(0, 7)}/${randomUUID()}.${extension}`;
+    await this.storage.putObject(key, file.buffer, file.mimetype);
+    const record = await this.repository.create({
+      key,
+      uploadId: randomUUID(),
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      sizeBytes: file.size,
+      status: 'ready',
+      createdBy: null,
+    });
+    return { mediaId: record._id.toString(), key, status: 'ready' };
+  }
+
+  async completeRequestAttachment(
+    mediaId: string,
+    dto: CompleteUploadDto,
+  ): Promise<Record<string, unknown>> {
+    const record = await this.repository.findById(mediaId);
+    if (
+      !record ||
+      !record.key.startsWith('request-attachments/') ||
+      record.uploadId !== dto.uploadId
+    ) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        'Request attachment upload is invalid.',
+      );
+    }
+    if (record.status !== 'pending') {
+      throw ApiException.conflict(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        `Attachment is already in state "${record.status}".`,
+      );
+    }
+    await this.transitionPendingStatus(mediaId, 'ready');
+    return { mediaId, key: record.key, status: 'ready' };
+  }
+
+  async assertReadyRequestAttachments(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    const uniqueKeys = [...new Set(keys)];
+    const records = await this.repository.findByKeys(uniqueKeys);
+    const readyKeys = new Set(
+      records
+        .filter(
+          (record) =>
+            record.status === 'ready' &&
+            record.key.startsWith('request-attachments/'),
+        )
+        .map((record) => record.key),
+    );
+    const invalid = uniqueKeys.find((key) => !readyKeys.has(key));
+    if (invalid) {
+      throw ApiException.invalid(
+        ErrorCodes.MEDIA_UPLOAD_INVALID,
+        'One or more request attachments are not ready.',
+        [
+          {
+            field: 'attachments',
+            message: 'Upload each attachment before submitting.',
+          },
+        ],
+      );
+    }
+  }
+
   async completeUpload(
     mediaId: string,
     dto: CompleteUploadDto,

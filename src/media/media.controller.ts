@@ -9,8 +9,9 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
-import { CurrentAdmin, Permissions } from '../common/decorators/decorators';
+import { CurrentAdmin, Permissions, Public } from '../common/decorators/decorators';
 import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { Permissions as PermissionList } from '../roles/permissions';
 import { MediaService } from './media.service';
@@ -59,5 +60,25 @@ export class MediaController {
   @Permissions(PermissionList.MEDIA_MANAGE)
   remove(@Param('id') id: string, @CurrentAdmin() admin: AdminPrincipal) {
     return this.service.remove(id, admin);
+  }
+}
+
+@ApiTags('public-request-media')
+@Controller('request-media')
+export class PublicRequestMediaController {
+  constructor(private readonly service: MediaService) {}
+
+  @Post('presign')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  presign(@Body() dto: PresignMediaDto) {
+    return this.service.presignRequestAttachment(dto);
+  }
+
+  @Post(':id/complete')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  complete(@Param('id') id: string, @Body() dto: CompleteUploadDto) {
+    return this.service.completeRequestAttachment(id, dto);
   }
 }

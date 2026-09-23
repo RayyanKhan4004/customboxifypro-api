@@ -353,7 +353,7 @@ export class ProductsService {
     if (dto.featured !== undefined) next.featured = dto.featured;
     if (dto.tags !== undefined) next.tags = dto.tags;
     if (dto.sku !== undefined) {
-      if (await this.repository.countBySku(dto.sku, id)) {
+      if (dto.sku && (await this.repository.countBySku(dto.sku, id))) {
         throw ApiException.conflict(
           ErrorCodes.PRODUCT_SKU_EXISTS,
           'A product with this SKU already exists.',

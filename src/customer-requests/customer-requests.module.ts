@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { MediaModule } from '../media/media.module';
 import {
   AdminCustomerRequestsController,
   PublicCustomerRequestsController,
@@ -20,6 +21,7 @@ import {
       { name: CustomerRequest.name, schema: CustomerRequestSchema },
     ]),
     AuditLogsModule,
+    MediaModule,
   ],
   controllers: [
     AdminCustomerRequestsController,

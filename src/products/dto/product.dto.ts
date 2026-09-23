@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -67,6 +68,36 @@ export class ProductSeoInput {
   canonicalUrl?: string;
 }
 
+export class ProductDimensionsInput {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  length?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  width?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  height?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  weight?: number;
+
+  @IsOptional()
+  @IsIn(['mm', 'cm', 'in'])
+  unit?: 'mm' | 'cm' | 'in';
+}
+
 export class CreateProductDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -115,9 +146,12 @@ export class CreateProductDto {
   tags?: string[];
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
   @IsString()
   @MaxLength(100)
-  sku?: string;
+  sku?: string | null;
 
   @IsOptional()
   @IsArray()
@@ -132,13 +166,9 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsObject()
-  dimensions?: {
-    length?: number;
-    width?: number;
-    height?: number;
-    weight?: number;
-    unit?: string;
-  };
+  @ValidateNested()
+  @Type(() => ProductDimensionsInput)
+  dimensions?: ProductDimensionsInput;
 
   @IsOptional()
   @IsInt()
@@ -146,7 +176,8 @@ export class CreateProductDto {
   moq?: number | null;
 
   @IsOptional()
-  customizableProperties?: unknown;
+  @IsObject()
+  customizableProperties?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsObject()

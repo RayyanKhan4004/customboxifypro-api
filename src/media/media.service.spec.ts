@@ -44,6 +44,7 @@ describe('MediaService', () => {
   let repository: {
     create: jest.Mock;
     findById: jest.Mock;
+    findByKeys: jest.Mock;
     transitionStatus: jest.Mock;
   };
   let storage: { createPresignedUpload: jest.Mock };
@@ -56,6 +57,7 @@ describe('MediaService', () => {
     repository = {
       create: jest.fn(),
       findById: jest.fn(),
+      findByKeys: jest.fn(),
       transitionStatus: jest.fn(),
     };
     storage = { createPresignedUpload: jest.fn() };
@@ -110,6 +112,67 @@ describe('MediaService', () => {
       method: 'PUT',
     });
     expect(imageQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('presigns request artwork in the isolated public namespace', async () => {
+    const record = mediaRecord({
+      key: 'request-attachments/2026-09/image.png',
+      createdBy: null,
+    });
+    repository.create.mockResolvedValue(record);
+    storage.createPresignedUpload.mockResolvedValue({
+      url: 'https://uploads.example.test/image.png',
+      method: 'PUT',
+    });
+
+    const result = await service.presignRequestAttachment({
+      fileName: 'image.png',
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+    });
+
+    expect(result.method).toBe('PUT');
+    expect(result.key).toMatch(/^request-attachments\//);
+    expect(repository.create).toHaveBeenCalledTimes(1);
+    const [createdRecord] = repository.create.mock.calls[0] as unknown as [
+      { key: string; createdBy: unknown },
+    ];
+    expect(createdRecord.key).toMatch(/^request-attachments\//);
+    expect(createdRecord.createdBy).toBeNull();
+  });
+
+  it('completes request artwork without requiring Redis processing', async () => {
+    const record = mediaRecord({
+      key: 'request-attachments/2026-09/image.png',
+    });
+    repository.findById.mockResolvedValue(record);
+    repository.transitionStatus.mockResolvedValue(true);
+
+    await expect(
+      service.completeRequestAttachment(record._id.toString(), {
+        uploadId: record.uploadId,
+      }),
+    ).resolves.toEqual({
+      mediaId: record._id.toString(),
+      key: record.key,
+      status: 'ready',
+    });
+    expect(repository.transitionStatus).toHaveBeenCalledWith(
+      record._id.toString(),
+      'pending',
+      'ready',
+    );
+    expect(imageQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('rejects arbitrary attachment keys on customer requests', async () => {
+    repository.findByKeys.mockResolvedValue([
+      mediaRecord({ key: 'media/2026-09/admin.png', status: 'ready' }),
+    ]);
+
+    await expect(
+      service.assertReadyRequestAttachments(['media/2026-09/admin.png']),
+    ).rejects.toMatchObject({ code: ErrorCodes.MEDIA_UPLOAD_INVALID });
   });
 
   it('atomically marks an image as processing before enqueueing it', async () => {

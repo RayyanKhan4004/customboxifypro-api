@@ -4,7 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { Queues } from '../common/constants/queues';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
-import { MediaController } from './media.controller';
+import { MediaController, PublicRequestMediaController } from './media.controller';
 import { MediaService } from './media.service';
 import { ImageProcessingProcessor } from './image-processing.processor';
 import { ImageProcessingService } from './image-processing.service';
@@ -18,7 +18,7 @@ import { Media, MediaSchema } from './schemas/media.schema';
     BullModule.registerQueue({ name: Queues.imageProcessing }),
     AuditLogsModule,
   ],
-  controllers: [MediaController],
+  controllers: [MediaController, PublicRequestMediaController],
   providers: [
     MediaService,
     MediaRepository,

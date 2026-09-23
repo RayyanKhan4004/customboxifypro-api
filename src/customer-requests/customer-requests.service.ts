@@ -8,6 +8,7 @@ import { ApiException } from '../common/exceptions/api.exception';
 import { AdminPagedData, adminPageData } from '../common/dto/pagination.types';
 import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { sha256 } from '../common/utils/strings';
+import { MediaService } from '../media/media.service';
 import { CustomerRequestRepository } from './repositories/customer-request.repository';
 import {
   CustomerRequestDocument,
@@ -30,11 +31,13 @@ export class CustomerRequestsService {
     private readonly repository: CustomerRequestRepository,
     private readonly spamGuard: SpamGuardService,
     private readonly audit: AuditService,
+    private readonly mediaService: MediaService,
   ) {}
 
   async submit(
     dto: SubmitCustomerRequestDto,
     ip: string | undefined,
+    attachmentFile?: Express.Multer.File,
   ): Promise<Record<string, unknown>> {
     // Honeypot: bots fill the hidden field; drop silently without persisting.
     if (dto.website && dto.website.length > 0) {
@@ -59,6 +62,14 @@ export class CustomerRequestsService {
       );
     }
 
+    const attachments = [...(dto.attachments ?? [])];
+    if (attachmentFile) {
+      const uploaded =
+        await this.mediaService.uploadRequestAttachment(attachmentFile);
+      attachments.push(String(uploaded.key));
+    }
+    await this.mediaService.assertReadyRequestAttachments(attachments);
+
     let created: CustomerRequestDocument;
     try {
       created = await this.repository.create({
@@ -69,7 +80,7 @@ export class CustomerRequestsService {
         quantity: dto.quantity ?? null,
         specs: dto.specs ?? {},
         notes: dto.notes ?? null,
-        attachments: dto.attachments ?? [],
+        attachments,
         consent: dto.consent,
         idempotencyKey: dto.idempotencyKey,
         sourceIpHash: ip ? sha256(ip) : null,
@@ -91,6 +102,14 @@ export class CustomerRequestsService {
       resourceId: String(created._id),
     });
     return { id: String(created._id), status: created.status };
+  }
+
+  async submitWithAttachment(
+    dto: SubmitCustomerRequestDto,
+    file: Express.Multer.File,
+    ip: string | undefined,
+  ): Promise<Record<string, unknown>> {
+    return this.submit(dto, ip, file);
   }
 
   async list(
@@ -141,7 +160,14 @@ export class CustomerRequestsService {
         'Request not found.',
       );
     }
-    return { ...record, _id: record._id.toString() };
+    const urls = await this.mediaService.resolveUrls(record.attachments ?? []);
+    return {
+      ...record,
+      _id: record._id.toString(),
+      attachmentUrls: Object.fromEntries(
+        (record.attachments ?? []).map((key) => [key, urls[key]?.url ?? null]),
+      ),
+    };
   }
 
   async updateStatus(

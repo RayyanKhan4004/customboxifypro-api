@@ -13,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 import {
@@ -52,6 +53,7 @@ export class SubmitCustomerRequestDto {
   @MaxLength(120)
   customRequestType?: string;
 
+  @ValidateNested()
   @Type(() => ContactDto)
   contact!: ContactDto;
 
