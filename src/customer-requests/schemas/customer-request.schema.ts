@@ -81,6 +81,21 @@ export class CustomerRequest {
   @Prop({ required: true, unique: true })
   idempotencyKey!: string;
 
+  @Prop({ type: String, unique: true, sparse: true })
+  quoteNumber?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'Customer', default: null })
+  customerId!: Types.ObjectId | null;
+
+  @Prop({ type: Types.ObjectId, ref: 'Conversation', default: null })
+  conversationId!: Types.ObjectId | null;
+
+  @Prop({ type: String, default: null })
+  conversationSkipReason!: string | null;
+
+  @Prop({ type: Boolean, default: false })
+  whatsappOptIn!: boolean;
+
   @Prop({ type: Boolean, required: true })
   consent!: boolean;
 

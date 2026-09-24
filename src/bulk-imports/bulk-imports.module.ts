@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { getQueueToken } from '@nestjs/bullmq';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { Queues } from '../common/constants/queues';
@@ -20,7 +21,9 @@ import { BulkImport, BulkImportSchema } from './schemas/bulk-import.schema';
     MongooseModule.forFeature([
       { name: BulkImport.name, schema: BulkImportSchema },
     ]),
-    BullModule.registerQueue({ name: Queues.bulkImport }),
+    ...(process.env.REDIS_ENABLED === 'true'
+      ? [BullModule.registerQueue({ name: Queues.bulkImport })]
+      : []),
     CategoriesModule,
     FilterDefinitionsModule,
     ProductsModule,
@@ -31,7 +34,9 @@ import { BulkImport, BulkImportSchema } from './schemas/bulk-import.schema';
   providers: [
     BulkImportService,
     BulkImportRepository,
-    BulkImportProcessor,
+    ...(process.env.REDIS_ENABLED === 'true'
+      ? [BulkImportProcessor]
+      : [{ provide: getQueueToken(Queues.bulkImport), useValue: null }]),
     ImportParserService,
   ],
   exports: [BulkImportService],

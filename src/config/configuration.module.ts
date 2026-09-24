@@ -8,6 +8,8 @@ import { JobsConfig } from './jobs.config';
 import { MediaConfig } from './media.config';
 import { R2Config } from './r2.config';
 import { RedisConfig } from './redis.config';
+import { WhatsAppConfig } from './whatsapp.config';
+import { validateEnv } from './env.validation';
 
 @Global()
 @Module({
@@ -15,6 +17,7 @@ import { RedisConfig } from './redis.config';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
+      validate: validateEnv,
     }),
   ],
   providers: [
@@ -23,6 +26,7 @@ import { RedisConfig } from './redis.config';
     DatabaseConfig,
     R2Config,
     RedisConfig,
+    WhatsAppConfig,
     MediaConfig,
     JobsConfig,
   ],
@@ -32,6 +36,7 @@ import { RedisConfig } from './redis.config';
     DatabaseConfig,
     R2Config,
     RedisConfig,
+    WhatsAppConfig,
     MediaConfig,
     JobsConfig,
   ],

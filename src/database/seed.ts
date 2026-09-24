@@ -44,6 +44,26 @@ async function seed(): Promise<void> {
       { returnDocument: 'after', upsert: true },
     );
 
+    await roles.findOneAndUpdate(
+      { key: 'chat-agent' },
+      {
+        $set: {
+          name: 'Chat Agent',
+          description: 'Assigned customer conversations',
+          permissions: [
+            'chats.read',
+            'chats.reply',
+            'chats.notes.create',
+            'chats.manage',
+            'chats.templates.send',
+          ],
+          isSystem: true,
+          status: 'active',
+        },
+      },
+      { upsert: true, returnDocument: 'after' },
+    );
+
     const existingAdmin = await admins.findOne({ email, deletedAt: null });
     if (existingAdmin) {
       await admins.updateOne(

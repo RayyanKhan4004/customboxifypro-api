@@ -15,6 +15,7 @@ export interface MailMessage {
 export class MailerService {
   private readonly transporter: Transporter | null;
   private readonly from: string;
+  private readonly replyTo?: string;
 
   constructor(
     config: ConfigService,
@@ -23,6 +24,7 @@ export class MailerService {
     const host = config.get<string>('SMTP_HOST');
     this.from =
       config.get<string>('EMAIL_FROM') ?? 'Boxify <no-reply@localhost>';
+    this.replyTo = config.get<string>('EMAIL_REPLY_TO') || undefined;
     if (host) {
       this.transporter = nodemailer.createTransport({
         host,
@@ -43,15 +45,11 @@ export class MailerService {
 
   async send(message: MailMessage): Promise<void> {
     if (!this.transporter) {
-      // Development fallback: never send real mail without SMTP.
-      this.logger.info('email (not sent, SMTP unconfigured)', {
-        to: message.to,
-        subject: message.subject,
-      });
-      return;
+      throw new Error('SMTP is not configured');
     }
     await this.transporter.sendMail({
       from: this.from,
+      replyTo: this.replyTo,
       to: message.to,
       subject: message.subject,
       html: message.html,

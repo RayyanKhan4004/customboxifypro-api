@@ -9,7 +9,7 @@ import { AppModule } from './app.module';
 import { AppConfig } from './config/app.config';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   const appConfig = app.get(AppConfig);
 
   app.setGlobalPrefix(appConfig.apiPrefix);

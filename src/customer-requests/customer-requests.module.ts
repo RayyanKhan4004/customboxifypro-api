@@ -3,6 +3,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { MediaModule } from '../media/media.module';
+import { ChatsModule } from '../chats/chats.module';
+import { NotificationsModule } from '../jobs/notifications/notifications.module';
+import { InAppNotificationsModule } from '../in-app-notifications/in-app-notifications.module';
 import {
   AdminCustomerRequestsController,
   PublicCustomerRequestsController,
@@ -22,6 +25,9 @@ import {
     ]),
     AuditLogsModule,
     MediaModule,
+    ChatsModule,
+    NotificationsModule,
+    InAppNotificationsModule,
   ],
   controllers: [
     AdminCustomerRequestsController,

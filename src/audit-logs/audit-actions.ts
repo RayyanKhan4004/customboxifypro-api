@@ -46,5 +46,11 @@ export const AuditActions = {
   REQUEST_ASSIGNED: 'request.assigned',
   REQUEST_NOTE_ADDED: 'request.note_added',
   REQUEST_BULK_STATUS_CHANGED: 'request.bulk_status_changed',
+  CHAT_NOTE_ADDED: 'chat.note_added',
+  CHAT_ASSIGNED: 'chat.assigned',
+  CHAT_STATUS_CHANGED: 'chat.status_changed',
+  CHAT_MESSAGE_QUEUED: 'chat.message_queued',
+  CHAT_TEMPLATE_QUEUED: 'chat.template_queued',
+  NOTIFICATION_RETRY: 'notification.retry',
+  WHATSAPP_TEST_QUEUED: 'whatsapp.test_queued',
 } as const;
-

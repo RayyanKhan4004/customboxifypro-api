@@ -29,6 +29,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { IndustriesModule } from './industries/industries.module';
 import { PackagingStylesModule } from './packaging-styles/packaging-styles.module';
 import { HomePageModule } from './home-page/home-page.module';
+import { ChatsModule } from './chats/chats.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { HomePageModule } from './home-page/home-page.module';
     IndustriesModule,
     PackagingStylesModule,
     HomePageModule,
+    ChatsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

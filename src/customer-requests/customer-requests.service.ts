@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 
 import { AuditService } from '../audit-logs/audit.service';
@@ -9,6 +10,9 @@ import { AdminPagedData, adminPageData } from '../common/dto/pagination.types';
 import { AdminPrincipal } from '../common/interfaces/admin-principal.interface';
 import { sha256 } from '../common/utils/strings';
 import { MediaService } from '../media/media.service';
+import { ChatsService } from '../chats/chats.service';
+import { NotificationService } from '../jobs/notifications/notification.service';
+import { InAppNotificationsService } from '../in-app-notifications/in-app-notifications.service';
 import { CustomerRequestRepository } from './repositories/customer-request.repository';
 import {
   CustomerRequestDocument,
@@ -32,6 +36,10 @@ export class CustomerRequestsService {
     private readonly spamGuard: SpamGuardService,
     private readonly audit: AuditService,
     private readonly mediaService: MediaService,
+    private readonly chats: ChatsService,
+    private readonly notifications: NotificationService,
+    private readonly config: ConfigService,
+    private readonly inAppNotifications: InAppNotificationsService,
   ) {}
 
   async submit(
@@ -51,15 +59,24 @@ export class CustomerRequestsService {
         [{ field: 'gRecaptchaToken' }],
       );
     }
+    if (
+      dto.whatsappOptIn &&
+      !/^\+[1-9]\d{7,14}$/.test(dto.contact.phone?.trim() ?? '')
+    ) {
+      throw ApiException.validation([
+        {
+          field: 'contact.phone',
+          message:
+            'An E.164 phone number is required for WhatsApp confirmation.',
+        },
+      ]);
+    }
 
     const existing = await this.repository.findByIdempotencyKey(
       dto.idempotencyKey,
     );
     if (existing) {
-      throw ApiException.conflict(
-        ErrorCodes.REQUEST_DUPLICATE,
-        'A request with this idempotency key already exists.',
-      );
+      return this.finalizeSubmission(existing);
     }
 
     const attachments = [...(dto.attachments ?? [])];
@@ -75,22 +92,28 @@ export class CustomerRequestsService {
       created = await this.repository.create({
         requestType: dto.requestType as CustomerRequestType,
         customRequestType: dto.customRequestType ?? null,
-        contact: dto.contact,
+        contact: {
+          ...dto.contact,
+          name: dto.contact.name.trim(),
+          email: dto.contact.email.trim().toLowerCase(),
+          phone: dto.contact.phone?.trim(),
+        },
         productName: dto.productName ?? null,
         quantity: dto.quantity ?? null,
         specs: dto.specs ?? {},
         notes: dto.notes ?? null,
         attachments,
         consent: dto.consent,
+        whatsappOptIn: dto.whatsappOptIn === true,
         idempotencyKey: dto.idempotencyKey,
         sourceIpHash: ip ? sha256(ip) : null,
       });
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        throw ApiException.conflict(
-          ErrorCodes.REQUEST_DUPLICATE,
-          'A request with this idempotency key already exists.',
+        const repeated = await this.repository.findByIdempotencyKey(
+          dto.idempotencyKey,
         );
+        if (repeated) return this.finalizeSubmission(repeated);
       }
       throw error;
     }
@@ -101,7 +124,99 @@ export class CustomerRequestsService {
       resourceType: 'customer-request',
       resourceId: String(created._id),
     });
-    return { id: String(created._id), status: created.status };
+    return this.finalizeSubmission(created);
+  }
+
+  private async finalizeSubmission(
+    created: CustomerRequestDocument,
+  ): Promise<Record<string, unknown>> {
+    const id = String(created._id);
+    const quoteNumber =
+      created.quoteNumber ?? `CB-${id.slice(-8).toUpperCase()}`;
+    const linked = await this.chats.linkQuote(
+      created._id,
+      created.contact,
+      created.whatsappOptIn,
+    );
+    await this.repository.update(id, {
+      quoteNumber,
+      customerId: linked.customerId,
+      conversationId: linked.conversationId,
+      conversationSkipReason: linked.conversationSkipReason,
+    });
+    await this.inAppNotifications.create(
+      `quote:${id}`,
+      'quote',
+      `New quote request ${quoteNumber}`,
+      `/requests?requestId=${id}`,
+    );
+    if (created.whatsappOptIn && linked.conversationId) {
+      await this.chats.queueQuoteConfirmation(
+        linked.conversationId,
+        created._id,
+        created.contact.name,
+        quoteNumber,
+      );
+    }
+
+    if (
+      this.config.get('EMAIL_ENABLED') === true ||
+      this.config.get<string>('EMAIL_ENABLED') === 'true'
+    ) {
+      const name = this.escapeHtml(created.contact.name);
+      const number = this.escapeHtml(quoteNumber);
+      const product = this.escapeHtml(
+        created.productName ?? created.requestType,
+      );
+      const quantity = created.quantity ? `, quantity ${created.quantity}` : '';
+      const customerText = `Hi ${created.contact.name},\n\nThank you for requesting a quote from Custom Boxify Pro. Your quote request #${quoteNumber} for ${created.productName ?? created.requestType}${quantity} has been received. Our team will contact you shortly.`;
+      await this.notifications.sendEmail({
+        to: created.contact.email,
+        subject: 'We Received Your Quote - Custom Boxify Pro',
+        html: `<p>Hi ${name},</p><p>Thank you for requesting a quote from Custom Boxify Pro.</p><p>Your quote request <strong>#${number}</strong> for ${product}${quantity} has been received. Our team will contact you shortly.</p>`,
+        text: customerText,
+        idempotencyKey: `quote:${id}:customer-email`,
+      });
+      const recipients = (
+        this.config.get<string>('EMAIL_ADMIN_RECIPIENTS') ?? ''
+      )
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const adminUrl = this.config.get<string>('ADMIN_APP_URL') ?? '';
+      const phone = created.contact.phone ?? 'Not provided';
+      for (const recipient of recipients) {
+        await this.notifications.sendEmail({
+          to: recipient,
+          subject: `New Quote Request - ${quoteNumber}`,
+          html: `<p>New quote request <strong>${number}</strong> from ${name} (${this.escapeHtml(created.contact.email)}).</p><p>Phone: ${this.escapeHtml(phone)}</p><p>Product: ${product}${quantity}</p><p><a href="${this.escapeHtml(adminUrl)}/requests?requestId=${id}">Open quote</a></p>`,
+          text: `New quote request ${quoteNumber} from ${created.contact.name} (${created.contact.email}). Phone: ${phone}. Product: ${created.productName ?? created.requestType}${quantity}. Open ${adminUrl}/requests?requestId=${id}`,
+          idempotencyKey: `quote:${id}:admin-email:${recipient}`,
+        });
+      }
+    }
+    return {
+      id,
+      status: created.status,
+      quoteNumber,
+      conversationId: linked.conversationId
+        ? String(linked.conversationId)
+        : null,
+    };
+  }
+
+  private escapeHtml(value: string): string {
+    return value.replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        })[char] ?? char,
+    );
   }
 
   async submitWithAttachment(

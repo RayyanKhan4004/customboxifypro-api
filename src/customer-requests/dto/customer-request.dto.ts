@@ -87,6 +87,10 @@ export class SubmitCustomerRequestDto {
   @IsIn([true], { message: 'consent must be true' })
   consent!: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  whatsappOptIn?: boolean;
+
   @IsString()
   @MinLength(8)
   @MaxLength(128)

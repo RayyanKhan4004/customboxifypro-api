@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { getQueueToken } from '@nestjs/bullmq';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { Queues } from '../common/constants/queues';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
-import { MediaController, PublicRequestMediaController } from './media.controller';
+import {
+  MediaController,
+  PublicRequestMediaController,
+} from './media.controller';
 import { MediaService } from './media.service';
 import { ImageProcessingProcessor } from './image-processing.processor';
 import { ImageProcessingService } from './image-processing.service';
@@ -15,7 +19,9 @@ import { Media, MediaSchema } from './schemas/media.schema';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Media.name, schema: MediaSchema }]),
-    BullModule.registerQueue({ name: Queues.imageProcessing }),
+    ...(process.env.REDIS_ENABLED === 'true'
+      ? [BullModule.registerQueue({ name: Queues.imageProcessing })]
+      : []),
     AuditLogsModule,
   ],
   controllers: [MediaController, PublicRequestMediaController],
@@ -24,7 +30,9 @@ import { Media, MediaSchema } from './schemas/media.schema';
     MediaRepository,
     S3ObjectStorageService,
     ImageProcessingService,
-    ImageProcessingProcessor,
+    ...(process.env.REDIS_ENABLED === 'true'
+      ? [ImageProcessingProcessor]
+      : [{ provide: getQueueToken(Queues.imageProcessing), useValue: null }]),
   ],
   exports: [MediaService, S3ObjectStorageService],
 })

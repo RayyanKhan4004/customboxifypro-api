@@ -377,6 +377,38 @@ export class EnvSchema {
   @IsString()
   EMAIL_FROM?: string;
 
+  @IsOptional() @Transform(toBoolean) @IsBoolean() EMAIL_ENABLED?: boolean;
+  @IsOptional() @IsString() EMAIL_REPLY_TO?: string;
+  @IsOptional() @IsString() EMAIL_ADMIN_RECIPIENTS?: string;
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  NOTIFICATION_DISPATCH_ENABLED?: boolean;
+
+  @IsOptional() @Transform(toBoolean) @IsBoolean() WHATSAPP_ENABLED?: boolean;
+  @IsOptional()
+  @IsString()
+  @Matches(/^v\d+\.\d+$/)
+  WHATSAPP_GRAPH_API_VERSION?: string;
+  @IsOptional() @IsString() WHATSAPP_ACCESS_TOKEN?: string;
+  @IsOptional() @IsString() WHATSAPP_PHONE_NUMBER_ID?: string;
+  @IsOptional() @IsString() WHATSAPP_BUSINESS_ACCOUNT_ID?: string;
+  @IsOptional() @IsString() WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string;
+  @IsOptional() @IsString() WHATSAPP_APP_SECRET?: string;
+  @IsOptional() @IsString() WHATSAPP_CONFIRMATION_TEMPLATE?: string;
+  @IsOptional() @IsString() WHATSAPP_DEFAULT_TEMPLATE_LANGUAGE?: string;
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  WHATSAPP_QUOTE_TEMPLATE_ENABLED?: boolean;
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
+  @Matches(/^\+[1-9]\d{7,14}$/)
+  WHATSAPP_TEST_RECIPIENT?: string;
+  @IsOptional() @IsString() WHATSAPP_TEST_TEMPLATE_LANGUAGE?: string;
+
   @IsOptional()
   @IsString()
   RECAPTCHA_SITE_KEY?: string;
@@ -413,6 +445,31 @@ export function validateEnv(
   ) {
     throw new Error(
       'Invalid environment configuration:\nR2_ACCESS_KEY_ID must be the Access Key ID from an R2 S3 API token, not R2_ACCOUNT_ID.',
+    );
+  }
+
+  if (
+    validated.WHATSAPP_ENABLED &&
+    (!validated.WHATSAPP_GRAPH_API_VERSION ||
+      !validated.WHATSAPP_ACCESS_TOKEN ||
+      !validated.WHATSAPP_PHONE_NUMBER_ID ||
+      !validated.WHATSAPP_APP_SECRET ||
+      !validated.WHATSAPP_WEBHOOK_VERIFY_TOKEN)
+  ) {
+    throw new Error(
+      'Invalid environment configuration:\nWhatsApp requires Graph version, access token, phone number ID, app secret, and webhook verify token.',
+    );
+  }
+
+  if (
+    validated.WHATSAPP_QUOTE_TEMPLATE_ENABLED &&
+    (!validated.WHATSAPP_ENABLED ||
+      !validated.WHATSAPP_CONFIRMATION_TEMPLATE ||
+      !validated.WHATSAPP_DEFAULT_TEMPLATE_LANGUAGE ||
+      !validated.WHATSAPP_BUSINESS_ACCOUNT_ID)
+  ) {
+    throw new Error(
+      'Invalid environment configuration:\nQuote WhatsApp sending requires an enabled provider, template name, language, and Business Account ID.',
     );
   }
 
