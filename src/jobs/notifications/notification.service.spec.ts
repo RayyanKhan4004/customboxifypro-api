@@ -10,6 +10,7 @@ describe('MongoDB notification outbox', () => {
     updateMany: jest
       .fn()
       .mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
+    findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
   };
   const mailer = { send: jest.fn() };
@@ -45,6 +46,9 @@ describe('MongoDB notification outbox', () => {
     });
     outbox.updateMany.mockReturnValue({
       exec: jest.fn().mockResolvedValue({}),
+    });
+    outbox.findOne.mockReturnValue({
+      lean: () => ({ exec: jest.fn().mockResolvedValue(null) }),
     });
   });
 
@@ -117,12 +121,44 @@ describe('MongoDB notification outbox', () => {
     const id = String(new Types.ObjectId());
     await service.retry(id);
     expect(outbox.updateOne).toHaveBeenCalledWith(
-      expect.objectContaining({ status: { $in: ['failed'] } }),
+      expect.objectContaining({ status: { $in: ['failed', 'blocked'] } }),
       expect.any(Object),
     );
     await service.retry(id, true);
     expect(outbox.updateOne).toHaveBeenCalledWith(
-      expect.objectContaining({ status: { $in: ['failed', 'uncertain'] } }),
+      expect.objectContaining({
+        status: { $in: ['failed', 'uncertain', 'blocked'] },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('retries a blocked quote only after the configured template is approved', async () => {
+    const id = String(new Types.ObjectId());
+    outbox.findOne.mockReturnValue({
+      lean: () => ({
+        exec: jest.fn().mockResolvedValue({
+          channel: 'whatsapp',
+          payload: {
+            type: 'template',
+            template: 'quote_received',
+            language: 'en_US',
+          },
+        }),
+      }),
+    });
+    config.get.mockReturnValue(true);
+    whatsapp.templateStatus.mockResolvedValue('PENDING');
+    await expect(service.retry(id)).rejects.toThrow('not approved');
+    expect(outbox.updateOne).not.toHaveBeenCalled();
+
+    whatsapp.templateStatus.mockResolvedValue('APPROVED');
+    await expect(service.retry(id)).resolves.toBe(true);
+    expect(outbox.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: id,
+        status: { $in: ['failed', 'blocked'] },
+      }),
       expect.any(Object),
     );
   });

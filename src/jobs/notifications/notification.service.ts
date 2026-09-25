@@ -155,12 +155,58 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
 
   async retry(id: string, allowUncertain = false): Promise<boolean> {
     if (!isValidObjectId(id)) return false;
+    const blocked = await this.outbox
+      .findOne({ _id: id, status: 'blocked' })
+      .lean()
+      .exec();
+    if (blocked) {
+      const payload = blocked.payload as {
+        type?: string;
+        template?: string;
+        language?: string;
+      };
+      if (
+        blocked.channel !== 'whatsapp' ||
+        payload.type !== 'template' ||
+        !payload.template
+      )
+        return false;
+      const quoteTemplateEnabled = this.config.get<unknown>(
+        'WHATSAPP_QUOTE_TEMPLATE_ENABLED',
+      );
+      if (
+        !this.whatsapp.enabled ||
+        (quoteTemplateEnabled !== true && quoteTemplateEnabled !== 'true')
+      )
+        throw new BadRequestException(
+          'WhatsApp quote template sending is disabled.',
+        );
+      let status: string | null;
+      try {
+        status = await this.whatsapp.templateStatus(
+          payload.template,
+          payload.language || 'en_US',
+        );
+      } catch (error) {
+        if (error instanceof WhatsAppProviderError && error.status === 401)
+          throw new BadRequestException(
+            'The WhatsApp access token is invalid or expired. Update it before retrying.',
+          );
+        throw error;
+      }
+      if (status !== 'APPROVED')
+        throw new BadRequestException(
+          'The WhatsApp template is not approved for the configured language.',
+        );
+    }
     const result = await this.outbox
       .updateOne(
         {
           _id: id,
           status: {
-            $in: allowUncertain ? ['failed', 'uncertain'] : ['failed'],
+            $in: allowUncertain
+              ? ['failed', 'uncertain', 'blocked']
+              : ['failed', 'blocked'],
           },
         },
         {

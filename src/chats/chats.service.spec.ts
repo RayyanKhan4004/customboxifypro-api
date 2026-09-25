@@ -34,6 +34,7 @@ describe('ChatsService access and messaging', () => {
     enabled: true,
     phoneNumberId: 'test-sender',
     confirmationTemplate: 'quote_received',
+    quoteTemplateEnabled: true,
     language: 'en_US',
   };
   const statusEvents = {
@@ -218,5 +219,30 @@ describe('ChatsService access and messaging', () => {
     );
     expect(linked.conversationId).toBeNull();
     expect(linked.conversationSkipReason).toBe('phone_missing_or_invalid');
+  });
+
+  it('queues a confirmation without attaching the quote to a different customer conversation', async () => {
+    const quoteId = new Types.ObjectId();
+    await service.queueQuoteConfirmation(
+      null,
+      quoteId,
+      'John',
+      'CB-123',
+      '+15551692329',
+    );
+    expect(conversations.findOne).not.toHaveBeenCalled();
+    expect(messages.findOne).not.toHaveBeenCalled();
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      'whatsapp',
+      '+15551692329',
+      {
+        type: 'template',
+        template: 'quote_received',
+        parameters: ['John', 'CB-123'],
+        language: 'en_US',
+      },
+      `quote:${String(quoteId)}:whatsapp`,
+      'pending',
+    );
   });
 });

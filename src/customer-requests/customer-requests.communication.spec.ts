@@ -104,6 +104,25 @@ describe('quote communication submission', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
+  it('queues an opted-in confirmation without linking another customer’s conversation', async () => {
+    repository.findByIdempotencyKey.mockResolvedValue(null);
+    repository.create.mockResolvedValue(record);
+    chats.linkQuote.mockResolvedValue({
+      customerId: new Types.ObjectId(),
+      conversationId: null,
+      conversationSkipReason: 'phone_linked_to_different_customer',
+    });
+    const response = await service.submit(dto, undefined);
+    expect(response.conversationId).toBeNull();
+    expect(chats.queueQuoteConfirmation).toHaveBeenCalledWith(
+      null,
+      id,
+      'John Doe',
+      'CB-99439011',
+      '+15551692329',
+    );
+  });
+
   it('rejects WhatsApp opt-in without a valid E.164 number', async () => {
     await expect(
       service.submit(

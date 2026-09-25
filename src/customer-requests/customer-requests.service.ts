@@ -150,12 +150,17 @@ export class CustomerRequestsService {
       `New quote request ${quoteNumber}`,
       `/requests?requestId=${id}`,
     );
-    if (created.whatsappOptIn && linked.conversationId) {
+    if (
+      created.whatsappOptIn &&
+      (linked.conversationId ||
+        linked.conversationSkipReason === 'phone_linked_to_different_customer')
+    ) {
       await this.chats.queueQuoteConfirmation(
         linked.conversationId,
         created._id,
         created.contact.name,
         quoteNumber,
+        created.contact.phone,
       );
     }
 

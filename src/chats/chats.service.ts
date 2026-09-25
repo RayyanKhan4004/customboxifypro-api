@@ -155,57 +155,63 @@ export class ChatsService {
   }
 
   async queueQuoteConfirmation(
-    conversationId: Types.ObjectId,
+    conversationId: Types.ObjectId | null,
     quoteId: Types.ObjectId,
     name: string,
     quoteNumber: string,
+    recipientPhone?: string,
   ): Promise<void> {
     if (
       !this.whatsappConfig.enabled ||
       !this.whatsappConfig.confirmationTemplate
     )
       return;
-    const conversation = await this.conversations
-      .findById(conversationId)
-      .exec();
-    if (!conversation) return;
+    const conversation = conversationId
+      ? await this.conversations.findById(conversationId).exec()
+      : null;
+    if (conversationId && !conversation) return;
+    const recipient = conversation ? `+${conversation.waId}` : recipientPhone;
+    if (!recipient) return;
     const text = `Hi ${name}, your Custom Boxify Pro quote request #${quoteNumber} has been received. Our team will contact you shortly.`;
     const templateStatus = this.whatsappConfig.quoteTemplateEnabled
       ? 'pending'
       : 'blocked';
     const idempotencyKey = `quote:${String(quoteId)}:whatsapp`;
-    const message = await this.messages
-      .findOneAndUpdate(
-        { idempotencyKey },
-        {
-          $setOnInsert: {
-            conversationId,
-            idempotencyKey,
-            direction: 'outbound',
-            type: 'text',
-            text,
-            status: templateStatus === 'blocked' ? 'blocked' : 'queued',
-            ...(templateStatus === 'blocked'
-              ? {
-                  failure:
-                    'Quote template sending is disabled pending Meta approval',
-                }
-              : {}),
-          },
-        },
-        { upsert: true, new: true },
-      )
-      .exec();
-    if (!message) throw new Error('Confirmation message could not be queued');
+    const message = conversation
+      ? await this.messages
+          .findOneAndUpdate(
+            { idempotencyKey },
+            {
+              $setOnInsert: {
+                conversationId,
+                idempotencyKey,
+                direction: 'outbound',
+                type: 'text',
+                text,
+                status: templateStatus === 'blocked' ? 'blocked' : 'queued',
+                ...(templateStatus === 'blocked'
+                  ? {
+                      failure:
+                        'Quote template sending is disabled pending Meta approval',
+                    }
+                  : {}),
+              },
+            },
+            { upsert: true, new: true },
+          )
+          .exec()
+      : null;
+    if (conversation && !message)
+      throw new Error('Confirmation message could not be queued');
     await this.notifications.enqueue(
       'whatsapp',
-      `+${conversation.waId}`,
+      recipient,
       {
         type: 'template',
         template: this.whatsappConfig.confirmationTemplate,
         parameters: [name, quoteNumber],
         language: this.whatsappConfig.language,
-        messageId: String(message._id),
+        ...(message ? { messageId: String(message._id) } : {}),
       },
       idempotencyKey,
       templateStatus,
