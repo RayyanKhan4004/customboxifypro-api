@@ -19,6 +19,8 @@ describe('MongoDB notification outbox', () => {
     sendText: jest.fn(),
     templateStatus: jest.fn(),
     enabled: true,
+    confirmationTemplate: 'quote_received',
+    language: 'en',
   };
   const messages = {
     updateOne: jest
@@ -135,14 +137,18 @@ describe('MongoDB notification outbox', () => {
 
   it('retries a blocked quote only after the configured template is approved', async () => {
     const id = String(new Types.ObjectId());
+    const quoteId = String(new Types.ObjectId());
     outbox.findOne.mockReturnValue({
       lean: () => ({
         exec: jest.fn().mockResolvedValue({
+          status: 'blocked',
           channel: 'whatsapp',
+          idempotencyKey: `quote:${quoteId}:whatsapp`,
           payload: {
             type: 'template',
-            template: 'quote_received',
+            template: 'jaspers_market_order_confirmation_v1',
             language: 'en_US',
+            parameters: ['John', 'CB-1024', 'Sep 27, 2026'],
           },
         }),
       }),
@@ -150,6 +156,10 @@ describe('MongoDB notification outbox', () => {
     config.get.mockReturnValue(true);
     whatsapp.templateStatus.mockResolvedValue('PENDING');
     await expect(service.retry(id)).rejects.toThrow('not approved');
+    expect(whatsapp.templateStatus).toHaveBeenCalledWith(
+      'quote_received',
+      'en',
+    );
     expect(outbox.updateOne).not.toHaveBeenCalled();
 
     whatsapp.templateStatus.mockResolvedValue('APPROVED');
@@ -161,6 +171,38 @@ describe('MongoDB notification outbox', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('refreshes a failed quote confirmation to the configured two-value template on retry', async () => {
+    const id = String(new Types.ObjectId());
+    const quoteId = String(new Types.ObjectId());
+    outbox.findOne.mockReturnValue({
+      lean: () => ({
+        exec: jest.fn().mockResolvedValue({
+          status: 'failed',
+          channel: 'whatsapp',
+          idempotencyKey: `quote:${quoteId}:whatsapp`,
+          payload: {
+            type: 'template',
+            template: 'jaspers_market_order_confirmation_v1',
+            language: 'en_US',
+            parameters: ['John Doe', 'CB-69FEDE53', 'Sep 27, 2026'],
+          },
+        }),
+      }),
+    });
+
+    await expect(service.retry(id)).resolves.toBe(true);
+    const [[filter, update]] = outbox.updateOne.mock.calls as unknown as [
+      [{ _id: string }, { $set: { payload: Record<string, unknown> } }],
+    ];
+    expect(filter._id).toBe(id);
+    expect(update.$set.payload).toEqual({
+      type: 'template',
+      template: 'quote_received',
+      language: 'en',
+      parameters: ['John Doe', 'CB-69FEDE53'],
+    });
   });
 
   it('stores an unavailable quote template as blocked without sending it', async () => {

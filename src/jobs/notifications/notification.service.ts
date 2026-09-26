@@ -155,18 +155,49 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
 
   async retry(id: string, allowUncertain = false): Promise<boolean> {
     if (!isValidObjectId(id)) return false;
-    const blocked = await this.outbox
-      .findOne({ _id: id, status: 'blocked' })
+    const retryableStatuses: NotificationOutbox['status'][] = allowUncertain
+      ? ['failed', 'uncertain', 'blocked']
+      : ['failed', 'blocked'];
+    const delivery = await this.outbox
+      .findOne({ _id: id, status: { $in: retryableStatuses } })
       .lean()
       .exec();
-    if (blocked) {
-      const payload = blocked.payload as {
+    let refreshedPayload: Record<string, unknown> | undefined;
+    if (
+      delivery?.status !== 'uncertain' &&
+      delivery?.channel === 'whatsapp' &&
+      /^quote:[a-f\d]{24}:whatsapp$/.test(delivery.idempotencyKey)
+    ) {
+      const payload = delivery.payload as {
+        type?: string;
+        template?: string;
+        parameters?: unknown;
+        language?: string;
+      };
+      if (
+        payload.type !== 'template' ||
+        !Array.isArray(payload.parameters) ||
+        payload.parameters.length < 2 ||
+        payload.parameters.length > 3 ||
+        !payload.parameters.every((value) => typeof value === 'string') ||
+        !this.whatsapp.confirmationTemplate
+      )
+        throw new BadRequestException('Quote confirmation cannot be retried.');
+      refreshedPayload = {
+        ...delivery.payload,
+        template: this.whatsapp.confirmationTemplate,
+        language: this.whatsapp.language,
+        parameters: payload.parameters.slice(0, 2),
+      };
+    }
+    if (delivery?.status === 'blocked') {
+      const payload = (refreshedPayload ?? delivery.payload) as {
         type?: string;
         template?: string;
         language?: string;
       };
       if (
-        blocked.channel !== 'whatsapp' ||
+        delivery.channel !== 'whatsapp' ||
         payload.type !== 'template' ||
         !payload.template
       )
@@ -203,11 +234,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       .updateOne(
         {
           _id: id,
-          status: {
-            $in: allowUncertain
-              ? ['failed', 'uncertain', 'blocked']
-              : ['failed', 'blocked'],
-          },
+          status: { $in: retryableStatuses },
         },
         {
           $set: {
@@ -216,6 +243,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
             leaseUntil: null,
             failure: null,
             attempts: 0,
+            ...(refreshedPayload ? { payload: refreshedPayload } : {}),
           },
         },
       )
